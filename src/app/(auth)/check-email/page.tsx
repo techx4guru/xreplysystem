@@ -28,6 +28,7 @@ export default function CheckEmailPage() {
             
             await auth.currentUser.reload();
             if (auth.currentUser.emailVerified) {
+                // Manually update local state as onAuthStateChanged might be slow
                 router.push('/dashboard');
             }
         };

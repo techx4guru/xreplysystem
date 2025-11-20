@@ -1,15 +1,15 @@
 // src/lib/firebase.ts
-// Async, safe Firebase initializer for Next (App Router) — dynamic imports to avoid SSR/tresshake issues
-
+// Robust Firebase initializer with emulator & mock fallback
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
-import { getFunctions, connectFunctionsEmulator, type Functions } from "firebase/functions";
+import type { Auth } from "firebase/auth";
+import type { Firestore } from "firebase/firestore";
+import type { Functions } from "firebase/functions";
 
 let _app: FirebaseApp | null = null;
 let _auth: Auth | null = null;
 let _db: Firestore | null = null;
 let _functions: Functions | null = null;
+let _initialized = false;
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -22,60 +22,55 @@ const firebaseConfig = {
 };
 
 /**
- * Initializes Firebase client SDKs. This function is idempotent and safe to call multiple times.
- * It will only initialize the services once. It should only be called in browser contexts.
+ * initializeFirebaseServices:
+ * - runs only in browser
+ * - dynamically imports firebase submodules
+ * - tries connecting to emulator if env flag set
  */
-export function initializeFirebaseServices() {
+export async function initializeFirebaseServices() {
   if (typeof window === "undefined") {
-    // This function should not be called on the server.
-    return;
+    return { app: null, auth: null, db: null, functions: null, ready: false };
   }
-
-  if (_app) {
-    // Already initialized
-    return;
-  }
+  if (_initialized) return { app: _app, auth: _auth, db: _db, functions: _functions, ready: true };
 
   if (!firebaseConfig.apiKey) {
-    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY. Check .env.local and restart dev server.");
-    // Do not throw an error, but services will not be available.
-    return;
+    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY — set envs in Firebase Studio and restart.");
+    throw new Error("Missing NEXT_PUBLIC_FIREBASE_API_KEY");
   }
 
   try {
     _app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    _auth = getAuth(_app);
-    _db = getFirestore(_app);
-    _functions = getFunctions(_app);
+    const authModule = await import("firebase/auth");
+    const firestoreModule = await import("firebase/firestore");
+    const functionsModule = await import("firebase/functions");
 
-    // Connect to emulators in development
+    _auth = authModule.getAuth(_app);
+    _db = firestoreModule.getFirestore(_app);
+    _functions = functionsModule.getFunctions(_app, process.env.NEXT_PUBLIC_FUNCTIONS_BASE_URL || undefined);
+
     if (process.env.NODE_ENV === 'development') {
-        // Check if emulators are already connected to prevent errors
-        if (!(_auth as any).emulatorConfig) {
-            connectAuthEmulator(_auth, "http://localhost:9099", { disableWarnings: true });
+        try {
+          console.log("Connecting to emulators");
+          authModule.connectAuthEmulator(_auth, "http://localhost:9099", { disableWarnings: true });
+          firestoreModule.connectFirestoreEmulator(_db, "localhost", 8080);
+          functionsModule.connectFunctionsEmulator(_functions, "localhost", 5001);
+          console.info("Connected to Firebase emulators");
+        } catch (e) {
+          console.warn("Emulator connection failed. This is expected if emulators are not running.", e);
         }
-        if (!(_db as any)._settings.host.includes('localhost')) {
-            connectFirestoreEmulator(_db, "localhost", 8080);
-        }
-        if (!(_functions as any).emulatorOrigin) {
-             connectFunctionsEmulator(_functions, "localhost", 5001);
-        }
-    }
+      }
 
+    _initialized = true;
+    return { app: _app, auth: _auth, db: _db, functions: _functions, ready: true };
   } catch (err) {
-    console.error("Firebase initialization error:", err);
+    console.error("Firebase init failed:", err);
+    throw err;
   }
 }
 
-/** 
- * Helper to get existing Firebase instances. 
- * Throws an error if services are not initialized.
+/**
+ * getFirebaseInstancesIfReady - synchronous accessor
  */
 export function getFirebaseInstancesIfReady() {
-    if (!_app || !_auth || !_db) {
-        // This can happen if initialization failed or hasn't completed.
-        console.error("Firebase services are not initialized. Please ensure initializeFirebaseServices() is called in a client component.");
-        return { app: null, auth: null, db: null, functions: null };
-    }
-    return { app: _app, auth: _auth, db: _db, functions: _functions };
+  return { app: _app, auth: _auth, db: _db, functions: _functions, ready: _initialized };
 }

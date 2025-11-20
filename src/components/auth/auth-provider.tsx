@@ -1,10 +1,9 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
-import { Skeleton } from '../ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { initializeFirebaseServices, getFirebaseInstancesIfReady } from '@/lib/firebase';
 
@@ -27,93 +26,101 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const { toast } = useToast();
-  
+
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
+    let userDocUnsubscribe: (() => void) | null = null;
     
-    // Initialize Firebase services on component mount.
-    // This function is client-side only and safe to call here.
-    initializeFirebaseServices();
-    const { auth, db } = getFirebaseInstancesIfReady();
-
-    if (!auth || !db) {
-      console.error("Firebase services not available. Check your configuration and .env.local file.");
-      setLoading(false);
-      return;
-    }
-
-    unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        
-        const unsubscribeSnapshot = onSnapshot(userRef, async (snapshot) => {
-          if (snapshot.exists()) {
-            setUser({...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified});
-          } else {
-            // This case handles users signing in via Google for the first time.
-            const newUserProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              role: 'operator', // Default role
-              emailVerified: firebaseUser.emailVerified,
-            };
-            await setDoc(userRef, newUserProfile);
-            setUser(newUserProfile);
-          }
+    const initializeAuth = async () => {
+      try {
+        const { auth, db } = await initializeFirebaseServices();
+        if (!auth || !db) {
+          console.warn("Firebase services unavailable after init.");
           setLoading(false);
+          return;
+        }
+
+        unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+          if (userDocUnsubscribe) userDocUnsubscribe();
+
+          if (firebaseUser) {
+            const userRef = doc(db, 'users', firebaseUser.uid);
+            userDocUnsubscribe = onSnapshot(userRef, (snapshot) => {
+              if (snapshot.exists()) {
+                setUser({ ...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified });
+              } else {
+                 const newUserProfile: UserProfile = {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  displayName: firebaseUser.displayName,
+                  photoURL: firebaseUser.photoURL,
+                  role: 'operator', // Default role
+                  emailVerified: firebaseUser.emailVerified,
+                };
+                setDoc(userRef, newUserProfile).catch(e => console.error("Error creating user profile", e));
+                setUser(newUserProfile);
+              }
+               setLoading(false);
+            });
+          } else {
+            setUser(null);
+            setLoading(false);
+          }
         });
-        return () => unsubscribeSnapshot();
-      } else {
-        setUser(null);
+      } catch (err) {
+        console.error("Failed to initialize Firebase services in AuthProvider:", err);
         setLoading(false);
       }
-    });
+    };
+    
+    initializeAuth();
 
     return () => {
-        if (unsubscribe) {
-            unsubscribe();
-        }
+      if (unsubscribe) unsubscribe();
+      if (userDocUnsubscribe) userDocUnsubscribe();
     };
   }, []);
+  
+  const handleAuthError = (error: any, context: string) => {
+    console.error(`Error in ${context}:`, error);
+    let description = "An unexpected error occurred.";
+    if (error.code === 'auth/network-request-failed') {
+      description = "Network error. Please check your connection or see the /dev/env-checker page."
+    } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      description = "Invalid email or password."
+    } else {
+      description = error.message;
+    }
+    toast({ variant: "destructive", title: "Authentication Error", description });
+    setIsAuthenticating(false);
+  }
 
   const signInWithGoogle = async () => {
     const { auth } = getFirebaseInstancesIfReady();
-    if (!auth) {
-        toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
-        return;
-    }
+    if (!auth) return handleAuthError({message: "Firebase is not configured."}, "Google Sign-In");
+    
     setIsAuthenticating(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      console.error('Error signing in with Google:', error);
-       toast({
-        variant: "destructive",
-        title: "Authentication Error",
-        description: error.message,
-      });
+      handleAuthError(error, "Google Sign-In");
     } finally {
-        setIsAuthenticating(false);
+      setIsAuthenticating(false);
     }
   };
 
-  const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+  const signUpWithEmail = async (email: string, password: string, displayName: string): Promise<User | null> => {
     const { auth, db } = getFirebaseInstancesIfReady();
     if (!auth || !db) {
-        toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
+        handleAuthError({message: "Firebase is not configured."}, "Sign-Up");
         return null;
     }
     setIsAuthenticating(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
-      
-      // Update the user's profile with the display name
       await updateProfile(firebaseUser, { displayName });
-
       const userProfile: UserProfile = {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
@@ -122,107 +129,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'operator',
         emailVerified: false,
       };
-
       await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
       await sendEmailVerification(firebaseUser);
-
-      toast({
-          title: "Verification Email Sent",
-          description: "Please check your inbox to verify your email address.",
-      });
-      
-      return firebaseUser;
-
-    } catch (error: any) {
-      console.error('Error signing up:', error);
-      toast({
-        variant: "destructive",
-        title: "Sign-up Failed",
-        description: error.message,
-      });
-      return null;
-    } finally {
+      toast({ title: "Verification Email Sent", description: "Please check your inbox to verify your email address." });
       setIsAuthenticating(false);
+      return firebaseUser;
+    } catch (error: any) {
+      handleAuthError(error, "Sign-Up");
+      return null;
     }
   };
 
-  const signInWithEmail = async (email: string, password: string) => {
+  const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
     const { auth } = getFirebaseInstancesIfReady();
     if (!auth) {
-        toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
+        handleAuthError({message: "Firebase is not configured."}, "Sign-In");
         return null;
     }
     setIsAuthenticating(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      setIsAuthenticating(false);
       return userCredential.user;
-    } catch (error: any)
-{
-      console.error('Error signing in:', error);
-      toast({
-        variant: "destructive",
-        title: "Sign-in Failed",
-        description: "Invalid email or password. Please try again.",
-      });
+    } catch (error: any) {
+      handleAuthError(error, "Sign-In");
       return null;
-    } finally {
-        setIsAuthenticating(false);
     }
   };
-  
+
   const sendPasswordReset = async (email: string) => {
-      const { auth } = getFirebaseInstancesIfReady();
-      if (!auth) {
-        toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
-        return;
-      }
-      try {
-          await sendPasswordResetEmail(auth, email);
-          toast({
-              title: "Password Reset Email Sent",
-              description: "If an account exists for this email, you will receive instructions to reset your password.",
-          });
-      } catch (error: any) {
-          console.error("Error sending password reset email:", error);
-           toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Could not send password reset email. Please try again later.",
-          });
-      }
+    const { auth } = getFirebaseInstancesIfReady();
+    if (!auth) return handleAuthError({message: "Firebase is not configured."}, "Password Reset");
+    
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({ title: "Password Reset Email Sent", description: "If an account exists, you will receive reset instructions." });
+    } catch (error: any) {
+      handleAuthError(error, "Password Reset");
+    }
   };
 
   const resendVerificationEmail = async () => {
     const { auth } = getFirebaseInstancesIfReady();
-    if (!auth) {
-        toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
-        return;
-    }
-    const firebaseUser = auth.currentUser;
-    if (firebaseUser) {
-        try {
-            await sendEmailVerification(firebaseUser);
-            toast({
-                title: "Verification Email Sent",
-                description: "A new verification email has been sent to your address.",
-            });
-        } catch (error: any) {
-            console.error("Error resending verification email:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Failed to send verification email. Please try again later.",
-            });
-        }
+    if (!auth?.currentUser) return handleAuthError({message: "Not signed in."}, "Resend Verification");
+
+    try {
+      await sendEmailVerification(auth.currentUser);
+      toast({ title: "Verification Email Sent", description: "A new verification email has been sent." });
+    } catch (error: any) {
+      handleAuthError(error, "Resend Verification");
     }
   };
 
   const signOut = async () => {
     const { auth } = getFirebaseInstancesIfReady();
-    if (!auth) {
-        toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
-        return;
-    }
+    if (!auth) return;
     try {
       await firebaseSignOut(auth);
     } catch (error) {
