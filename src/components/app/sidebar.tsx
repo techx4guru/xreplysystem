@@ -64,16 +64,17 @@ export function AppSidebar() {
         }
         return (
             <SidebarMenuItem key={item.href}>
-                <Link href={item.href} passHref>
                 <SidebarMenuButton
+                    asChild
                     isActive={pathname.startsWith(item.href)}
                     tooltip={item.label}
                 >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.badge && <Badge variant="secondary" className="ml-auto">{item.badge}</Badge>}
+                    <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                        {item.badge && <Badge variant="secondary" className="ml-auto">{item.badge}</Badge>}
+                    </Link>
                 </SidebarMenuButton>
-                </Link>
             </SidebarMenuItem>
         )
     });

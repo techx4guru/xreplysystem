@@ -48,8 +48,8 @@ export function AppHeader() {
             <DropdownMenuContent align="end">
             <DropdownMenuLabel>{user?.displayName || 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-                <Link href="/settings" className="flex items-center">
+            <DropdownMenuItem asChild>
+                <Link href="/settings" className="flex items-center w-full">
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                 </Link>

@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HardDrive, Webhook } from "lucide-react";
+import Link from "next/link";
 
 export default function IntegrationsPage() {
   return (
@@ -22,7 +23,7 @@ export default function IntegrationsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        Your API keys are managed in <a href="/settings" className="underline text-primary">Settings &gt; API Keys</a>.
+                        Your API keys are managed in <Link href="/settings" className="underline text-primary">Settings &gt; API Keys</Link>.
                         Use this panel to test the connection.
                     </p>
                     <Button>Test X Connection</Button>

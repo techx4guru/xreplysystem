@@ -33,11 +33,11 @@ export function PostCard({ post }: PostCardProps) {
                 <div className="text-sm text-muted-foreground">@{post.authorHandle}</div>
             </div>
             </div>
-             <Link href={`/queue/${post.id}`}>
-                <Button variant="ghost" size="icon">
+             <Button asChild variant="ghost" size="icon">
+                <Link href={`/queue/${post.id}`}>
                     <ArrowUpRight className="h-4 w-4" />
-                </Button>
-            </Link>
+                </Link>
+            </Button>
         </div>
       </CardHeader>
       <CardContent className="flex-1">

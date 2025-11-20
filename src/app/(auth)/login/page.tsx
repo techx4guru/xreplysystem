@@ -93,10 +93,8 @@ export default function LoginPage() {
                 <div className="grid gap-2">
                     <div className="flex items-center">
                         <Label htmlFor="password">Password</Label>
-                        <Link href="/forgot-password" passHref legacyBehavior>
-                           <a className="ml-auto inline-block text-sm underline">
+                        <Link href="/forgot-password" className="ml-auto inline-block text-sm underline">
                              Forgot your password?
-                           </a>
                         </Link>
                     </div>
                     <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isAuthenticating} />
@@ -109,10 +107,8 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="text-center text-sm">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" passHref legacyBehavior>
-                <a className="underline ml-1">
-                    Sign up
-                </a>
+            <Link href="/signup" className="underline ml-1">
+                Sign up
             </Link>
         </CardFooter>
       </Card>

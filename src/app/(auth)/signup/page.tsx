@@ -95,10 +95,8 @@ export default function SignupPage() {
         </CardContent>
         <CardFooter className="text-center text-sm">
             Already have an account?{' '}
-            <Link href="/login" passHref legacyBehavior>
-                <a className="underline ml-1">
-                    Sign in
-                </a>
+            <Link href="/login" className="underline ml-1">
+                Sign in
             </Link>
         </CardFooter>
       </Card>
