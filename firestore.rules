@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if a user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to get user's custom claims (role)
+    function getRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    // Helper function to check if a user is an admin
+    function isAdmin() {
+      return isAuthenticated() && getRole(request.auth.uid) == 'admin';
+    }
+
+    // Helper function to check if a user is an operator
+    function isOperator() {
+      return isAuthenticated() && (getRole(request.auth.uid) == 'operator' || isAdmin());
+    }
+
+    // User profiles can be read by anyone, but only the user themselves or an admin can write.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if request.auth.uid == userId || isAdmin();
+    }
+
+    // Authors can be read by any operator. Only admins can create/update/delete.
+    match /authors/{authorId} {
+      allow read: if isOperator();
+      allow write: if isAdmin();
+    }
+
+    // Posts can be read and updated by operators. Only admins can delete.
+    match /posts/{postId} {
+      allow read, update: if isOperator();
+      allow create: if isOperator(); // Or a trusted function
+      allow delete: if isAdmin();
+    }
+
+    // Candidates can be read and created by operators. Only admins can delete.
+    match /candidates/{candidateId} {
+      allow read, create: if isOperator();
+      allow update: if isOperator();
+      allow delete: if isAdmin();
+    }
+
+    // Replies are created by operators/functions and can be read by operators.
+    match /replies/{replyId} {
+      allow read, create: if isOperator();
+      allow update: if isOperator();
+      allow delete: if isAdmin();
+    }
+    
+    // Flags are created and read by operators.
+    match /flags/{flagId} {
+        allow read, create: if isOperator();
+        allow delete: if isAdmin();
+    }
+
+    // Templates are only accessible by admins.
+    match /templates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // System configuration is only accessible by admins.
+    match /config/{docId} {
+        allow read, write: if isAdmin();
+    }
+  }
+}
