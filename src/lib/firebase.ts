@@ -38,7 +38,7 @@ export async function initializeFirebaseServices() {
         authDomain: firebaseConfig.authDomain,
       },
     });
-    // We don't throw here to allow the app to render, but auth will fail.
+    // Don't throw, allow app to run, but auth will fail.
     return { app: null, auth: null, db: null, functions: null };
   }
 
@@ -68,24 +68,6 @@ export async function initializeFirebaseServices() {
     } catch (e) {
         console.warn("Firebase Functions is not available.", e)
     }
-
-    // If you want to connect to emulators in dev:
-    if (process.env.NODE_ENV === 'development') {
-        try {
-            if (_auth && !(_auth as any).emulatorConfig) {
-                authModule.connectAuthEmulator(_auth, "http://localhost:9099", { disableWarnings: true });
-            }
-            if (_db && !(_db as any)._settings.host.includes('localhost')) {
-                firestoreModule.connectFirestoreEmulator(_db, "localhost", 8080);
-            }
-            if (_functions && !(_functions as any).emulatorOrigin) {
-                functionsModule.connectFunctionsEmulator(_functions, "localhost", 5001);
-            }
-        } catch (error) {
-            console.error("Error connecting to Firebase emulators:", error);
-        }
-    }
-
 
     return { app: _app, auth: _auth, db: _db, functions: _functions };
   } catch (err) {

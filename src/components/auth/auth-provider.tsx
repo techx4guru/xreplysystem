@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, connectAuthEmulator } from 'firebase/auth';
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, connectFirestoreEmulator } from 'firebase/firestore';
 import type { UserProfile, UserRole } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +39,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setLoading(false);
                 return;
             }
+
+            // Connect to emulators in development
+            if (process.env.NODE_ENV === 'development') {
+                try {
+                    // Type assertion to access internal properties for checking connection
+                    if (!((auth as any).emulatorConfig)) {
+                         connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
+                    }
+                    if (!((db as any)._settings.host.includes('localhost'))) {
+                        connectFirestoreEmulator(db, "localhost", 8080);
+                    }
+                } catch (error) {
+                    console.error("Error connecting to Firebase emulators:", error);
+                }
+            }
+
 
             unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
               if (firebaseUser) {
