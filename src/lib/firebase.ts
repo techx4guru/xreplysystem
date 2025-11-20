@@ -1,5 +1,6 @@
 // src/lib/firebase.ts
-// Robust Firebase initializer with emulator & mock fallback
+// Async, safe Firebase initializer for Next (App Router) — dynamic imports to avoid SSR/tresshake issues
+
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import type { Auth } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
@@ -9,7 +10,6 @@ let _app: FirebaseApp | null = null;
 let _auth: Auth | null = null;
 let _db: Firestore | null = null;
 let _functions: Functions | null = null;
-let _initialized = false;
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -22,32 +22,39 @@ const firebaseConfig = {
 };
 
 /**
- * initializeFirebaseServices:
- * - runs only in browser
- * - dynamically imports firebase submodules
- * - tries connecting to emulator if env flag set
+ * Initialize Firebase client SDKs. MUST be called from the browser.
+ * Returns an object with app, auth, db, functions, and an optional error string.
  */
 export async function initializeFirebaseServices() {
   if (typeof window === "undefined") {
-    return { app: null, auth: null, db: null, functions: null, ready: false };
+    console.warn("initializeFirebaseServices called on server — aborting.");
+    return { app: null, auth: null, db: null, functions: null, error: 'server-side' };
   }
-  if (_initialized) return { app: _app, auth: _auth, db: _db, functions: _functions, ready: true };
 
   if (!firebaseConfig.apiKey) {
-    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY — set envs in Firebase Studio and restart.");
-    throw new Error("Missing NEXT_PUBLIC_FIREBASE_API_KEY");
+    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY. Check .env.local and restart dev server.");
+    // Don't throw, just return error state
+    return { app: null, auth: null, db: null, functions: null, error: 'missing-key' };
   }
 
   try {
     _app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  } catch (err) {
+    console.error("Firebase initializeApp error (check config):", err);
+    throw err;
+  }
+
+  try {
+    // dynamic import ensures provider registration in browser runtime
     const authModule = await import("firebase/auth");
     const firestoreModule = await import("firebase/firestore");
     const functionsModule = await import("firebase/functions");
 
-    _auth = authModule.getAuth(_app);
-    _db = firestoreModule.getFirestore(_app);
-    _functions = functionsModule.getFunctions(_app, process.env.NEXT_PUBLIC_FUNCTIONS_BASE_URL || undefined);
+    _auth = _auth ?? authModule.getAuth(_app);
+    _db = _db ?? firestoreModule.getFirestore(_app);
+    _functions = _functions ?? functionsModule.getFunctions(_app, process.env.NEXT_PUBLIC_FUNCTIONS_BASE_URL || undefined);
 
+    let emulatorError: string | null = null;
     if (process.env.NODE_ENV === 'development') {
         try {
           console.log("Connecting to emulators");
@@ -57,20 +64,18 @@ export async function initializeFirebaseServices() {
           console.info("Connected to Firebase emulators");
         } catch (e) {
           console.warn("Emulator connection failed. This is expected if emulators are not running.", e);
+          emulatorError = 'emulator-connection-failed';
         }
-      }
+    }
 
-    _initialized = true;
-    return { app: _app, auth: _auth, db: _db, functions: _functions, ready: true };
+    return { app: _app, auth: _auth, db: _db, functions: _functions, error: emulatorError };
   } catch (err) {
-    console.error("Firebase init failed:", err);
+    console.error("Error importing firebase submodules:", err);
     throw err;
   }
 }
 
-/**
- * getFirebaseInstancesIfReady - synchronous accessor
- */
+/** Helper—returns existing instances or null. Prefer calling initializeFirebaseServices() in client code. */
 export function getFirebaseInstancesIfReady() {
-  return { app: _app, auth: _auth, db: _db, functions: _functions, ready: _initialized };
+  return { app: _app, auth: _auth, db: _db, functions: _functions };
 }

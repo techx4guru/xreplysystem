@@ -6,11 +6,13 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { initializeFirebaseServices, getFirebaseInstancesIfReady } from '@/lib/firebase';
+import { AlertTriangle } from 'lucide-react';
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   isAuthenticating: boolean;
+  emulatorConnectionError: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<User | null>;
@@ -25,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [emulatorConnectionError, setEmulatorConnectionError] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,7 +36,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const initializeAuth = async () => {
       try {
-        const { auth, db } = await initializeFirebaseServices();
+        const { auth, db, error } = await initializeFirebaseServices();
+        if (error === 'emulator-connection-failed') {
+          setEmulatorConnectionError(true);
+        }
+
         if (!auth || !db) {
           console.warn("Firebase services unavailable after init.");
           setLoading(false);
@@ -191,39 +198,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const value = { user, loading, isAuthenticating, signInWithGoogle, signOut, signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail };
-
-  if (loading) {
-    return (
-        <div className="flex h-screen w-screen items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="48"
-                    height="48"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-12 w-12 text-primary animate-pulse"
-                  >
-                    <path d="M11.767 19.089c4.91 0 7.43-4.141 7.43-7.43 0-1.3-.323-2.52-.89-3.635" />
-                    <path d="M14.534 9.873a4.136 4.136 0 0 0-4.66-4.66" />
-                    <path d="M19.199 4.801c-1.115-.568-2.315-.89-3.635-.89-3.289 0-7.43 2.52-7.43 7.43 0 4.91 4.141 7.43 7.43 7.43 1.3 0 2.52-.323 3.635-.89" />
-                    <path d="M9.873 9.466a4.136 4.136 0 0 1 4.66 4.66" />
-                    <path d="M4.801 4.801C3.685 5.915 2.5 7.69 2.5 9.873c0 3.289 2.52 7.43 7.43 7.43" />
-                  </svg>
-                  <p className="text-muted-foreground">Initializing Autopilot...</p>
-            </div>
-        </div>
-    );
-  }
+  const value = { user, loading, isAuthenticating, emulatorConnectionError, signInWithGoogle, signOut, signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+        {emulatorConnectionError && (
+            <div className="bg-yellow-500 text-black p-3 text-center text-sm font-semibold flex items-center justify-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                <span>Could not connect to Firebase Emulators. Please run <code>firebase emulators:start</code> and refresh the page.</span>
+            </div>
+        )}
+        {loading ? (
+            <div className="flex h-screen w-screen items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-12 w-12 text-primary animate-pulse"
+                    >
+                        <path d="M11.767 19.089c4.91 0 7.43-4.141 7.43-7.43 0-1.3-.323-2.52-.89-3.635" />
+                        <path d="M14.534 9.873a4.136 4.136 0 0 0-4.66-4.66" />
+                        <path d="M19.199 4.801c-1.115-.568-2.315-.89-3.635-.89-3.289 0-7.43 2.52-7.43 7.43 0 4.91 4.141 7.43 7.43 7.43 1.3 0 2.52-.323 3.635-.89" />
+                        <path d="M9.873 9.466a4.136 4.136 0 0 1 4.66 4.66" />
+                        <path d="M4.801 4.801C3.685 5.915 2.5 7.69 2.5 9.873c0 3.289 2.52 7.43 7.43 7.43" />
+                    </svg>
+                    <p className="text-muted-foreground">Initializing Autopilot...</p>
+                </div>
+            </div>
+        ) : children}
     </AuthContext.Provider>
   );
 };
