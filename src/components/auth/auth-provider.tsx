@@ -1,11 +1,12 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import type { UserProfile, UserRole } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -13,6 +14,10 @@ interface AuthContextType {
   isAuthenticating: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<User | null>;
+  signInWithEmail: (email: string, password: string) => Promise<User | null>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
@@ -29,15 +35,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const unsubscribeSnapshot = onSnapshot(userRef, async (snapshot) => {
           if (snapshot.exists()) {
-            setUser(snapshot.data() as UserProfile);
+            setUser({...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified});
           } else {
-            // New user, create a profile
+            // This case handles Google sign-in for the first time
             const newUserProfile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               displayName: firebaseUser.displayName,
               photoURL: firebaseUser.photoURL,
               role: 'operator', // Default role
+              emailVerified: firebaseUser.emailVerified,
             };
             await setDoc(userRef, newUserProfile);
             setUser(newUserProfile);
@@ -60,10 +67,108 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing in with Google:', error);
+       toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: error.message,
+      });
     } finally {
         setIsAuthenticating(false);
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    setIsAuthenticating(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      
+      const userProfile: UserProfile = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: displayName,
+        photoURL: null,
+        role: 'operator',
+        emailVerified: false,
+      };
+
+      await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
+      await sendEmailVerification(firebaseUser);
+
+      toast({
+          title: "Verification Email Sent",
+          description: "Please check your inbox to verify your email address.",
+      });
+      
+      return firebaseUser;
+
+    } catch (error: any) {
+      console.error('Error signing up:', error);
+      toast({
+        variant: "destructive",
+        title: "Sign-up Failed",
+        description: error.message,
+      });
+      return null;
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    setIsAuthenticating(true);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      return userCredential.user;
+    } catch (error: any) {
+      console.error('Error signing in:', error);
+      toast({
+        variant: "destructive",
+        title: "Sign-in Failed",
+        description: "Invalid email or password. Please try again.",
+      });
+      return null;
+    } finally {
+        setIsAuthenticating(false);
+    }
+  };
+  
+  const sendPasswordReset = async (email: string) => {
+      try {
+          await sendPasswordResetEmail(auth, email);
+          toast({
+              title: "Password Reset Email Sent",
+              description: "If an account exists for this email, you will receive instructions to reset your password.",
+          });
+      } catch (error: any) {
+          console.error("Error sending password reset email:", error);
+           toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Could not send password reset email. Please try again later.",
+          });
+      }
+  };
+
+  const resendVerificationEmail = async () => {
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser) {
+        try {
+            await sendEmailVerification(firebaseUser);
+            toast({
+                title: "Verification Email Sent",
+                description: "A new verification email has been sent to your address.",
+            });
+        } catch (error: any) {
+            console.error("Error resending verification email:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to send verification email. Please try again later.",
+            });
+        }
     }
   };
 
@@ -75,9 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const value = { user, loading, isAuthenticating, signInWithGoogle, signOut };
+  const value = { user, loading, isAuthenticating, signInWithGoogle, signOut, signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail };
 
-  // Render a loading screen while auth state is being determined
   if (loading) {
     return (
         <div className="flex h-screen w-screen items-center justify-center">

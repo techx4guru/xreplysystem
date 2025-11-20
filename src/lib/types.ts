@@ -8,6 +8,7 @@ export interface UserProfile {
   displayName: string | null;
   photoURL: string | null;
   role: UserRole;
+  emailVerified?: boolean;
 }
 
 export interface Author {
