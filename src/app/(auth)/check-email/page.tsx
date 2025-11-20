@@ -5,13 +5,12 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MailCheck } from 'lucide-react';
-import { getFirebaseAuthSafe } from '@/lib/firebase';
+import { initializeFirebaseServices } from '@/lib/firebase';
 
 export default function CheckEmailPage() {
     const { user, resendVerificationEmail, signOut } = useAuth();
     const router = useRouter();
     const [cooldown, setCooldown] = useState(0);
-    const auth = getFirebaseAuthSafe();
 
     useEffect(() => {
         if (user?.emailVerified) {
@@ -21,17 +20,22 @@ export default function CheckEmailPage() {
     
     // Poll for email verification status
     useEffect(() => {
-        if(!user || user.emailVerified || !auth?.currentUser) return;
+        if(!user || user.emailVerified) return;
 
-        const interval = setInterval(async () => {
-            await auth.currentUser?.reload();
-            if (auth.currentUser?.emailVerified) {
+        const poll = async () => {
+            const { auth } = await initializeFirebaseServices();
+            if (!auth?.currentUser) return;
+            
+            await auth.currentUser.reload();
+            if (auth.currentUser.emailVerified) {
                 router.push('/dashboard');
             }
-        }, 5000); // Poll every 5 seconds
+        };
+
+        const interval = setInterval(poll, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
-    }, [user, router, auth]);
+    }, [user, router]);
 
 
     const handleResend = () => {

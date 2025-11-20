@@ -2,11 +2,11 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
-import { getFirebaseAuthSafe, getFirestoreSafe } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import type { UserProfile, UserRole } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { initializeFirebaseServices } from '@/lib/firebase';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -28,50 +28,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const { toast } = useToast();
   
-  const auth = getFirebaseAuthSafe();
-  const db = getFirestoreSafe();
-
   useEffect(() => {
-    if (!auth || !db) {
-        // Firebase might not be initialized (e.g., missing config)
-        setLoading(false);
-        return;
+    let unsubscribe: (() => void) | null = null;
+    const initAuth = async () => {
+        try {
+            const { auth, db } = await initializeFirebaseServices();
+
+            if (!auth || !db) {
+                toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured correctly. Check your .env.local file." });
+                setLoading(false);
+                return;
+            }
+
+            unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
+              if (firebaseUser) {
+                const userRef = doc(db, 'users', firebaseUser.uid);
+                
+                const unsubscribeSnapshot = onSnapshot(userRef, async (snapshot) => {
+                  if (snapshot.exists()) {
+                    setUser({...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified});
+                  } else {
+                    const newUserProfile: UserProfile = {
+                      uid: firebaseUser.uid,
+                      email: firebaseUser.email,
+                      displayName: firebaseUser.displayName,
+                      photoURL: firebaseUser.photoURL,
+                      role: 'operator', // Default role
+                      emailVerified: firebaseUser.emailVerified,
+                    };
+                    await setDoc(userRef, newUserProfile);
+                    setUser(newUserProfile);
+                  }
+                  setLoading(false);
+                });
+                return () => unsubscribeSnapshot();
+              } else {
+                setUser(null);
+                setLoading(false);
+              }
+            });
+        } catch (error) {
+            console.error("Firebase initialization failed in AuthProvider:", error);
+            toast({ variant: "destructive", title: "Initialization Error", description: "Could not connect to Firebase."});
+            setLoading(false);
+        }
     };
+    
+    initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        
-        const unsubscribeSnapshot = onSnapshot(userRef, async (snapshot) => {
-          if (snapshot.exists()) {
-            setUser({...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified});
-          } else {
-            // This case handles Google sign-in for the first time
-            const newUserProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              role: 'operator', // Default role
-              emailVerified: firebaseUser.emailVerified,
-            };
-            await setDoc(userRef, newUserProfile);
-            setUser(newUserProfile);
-          }
-          setLoading(false);
-        });
-
-        return () => unsubscribeSnapshot();
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [auth, db]);
+    return () => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    };
+  }, [toast]);
 
   const signInWithGoogle = async () => {
+    const { auth } = await initializeFirebaseServices();
     if (!auth) {
         toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
         return;
@@ -93,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    const { auth, db } = await initializeFirebaseServices();
     if (!auth || !db) {
         toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
         return null;
@@ -135,6 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    const { auth } = await initializeFirebaseServices();
     if (!auth) {
         toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
         return null;
@@ -158,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
   
   const sendPasswordReset = async (email: string) => {
+      const { auth } = await initializeFirebaseServices();
       if (!auth) {
         toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
         return;
@@ -179,6 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resendVerificationEmail = async () => {
+    const { auth } = await initializeFirebaseServices();
     if (!auth) {
         toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
         return;
@@ -203,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    const { auth } = await initializeFirebaseServices();
     if (!auth) {
         toast({ variant: "destructive", title: "Configuration Error", description: "Firebase is not configured." });
         return;
