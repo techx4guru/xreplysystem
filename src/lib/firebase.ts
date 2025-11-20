@@ -61,21 +61,31 @@ export function initializeFirebaseServices() {
   const { getFunctions, connectFunctionsEmulator } = require("firebase/functions");
 
   _auth = _auth ?? getAuth(_app);
-  _db = _db ?? getFirestore(_app);
-  _functions = _functions ?? getFunctions(_app);
+  
+  try {
+    _db = _db ?? getFirestore(_app);
+  } catch (e) {
+    console.error("Firestore is not available. Please enable it in your Firebase project console.", e);
+  }
+  
+  try {
+    _functions = _functions ?? getFunctions(_app);
+  } catch (e) {
+    console.warn("Firebase Functions is not available.", e)
+  }
   
     if (process.env.NODE_ENV === 'development') {
         try {
             // @ts-ignore - _isEmulator is an internal property but useful here
-            if (!_auth.emulatorConfig) {
+            if (_auth && !_auth.emulatorConfig) {
                 connectAuthEmulator(_auth, 'http://localhost:9099', { disableWarnings: true });
             }
             // @ts-ignore
-            if (!_db._settings.host.includes('localhost')) {
+            if (_db && !_db._settings.host.includes('localhost')) {
                  connectFirestoreEmulator(_db, 'localhost', 8080);
             }
              // @ts-ignore
-            if (!_functions.emulatorOrigin) {
+            if (_functions && !_functions.emulatorOrigin) {
                 connectFunctionsEmulator(_functions, 'localhost', 5001);
             }
         } catch (error) {
