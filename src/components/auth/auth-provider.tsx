@@ -2,7 +2,7 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { getFirebaseAuthSafe, getFirestoreSafe } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import type { UserProfile, UserRole } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
@@ -27,8 +27,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const { toast } = useToast();
+  
+  const auth = getFirebaseAuthSafe();
+  const db = getFirestoreSafe();
 
   useEffect(() => {
+    if (!auth || !db) {
+        setLoading(false);
+        return;
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
       if (firebaseUser) {
         const userRef = doc(db, 'users', firebaseUser.uid);
@@ -60,9 +68,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [auth, db]);
 
   const signInWithGoogle = async () => {
+    if (!auth) return;
     setIsAuthenticating(true);
     const provider = new GoogleAuthProvider();
     try {
@@ -80,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    if (!auth || !db) return null;
     setIsAuthenticating(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -118,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    if (!auth) return null;
     setIsAuthenticating(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -136,6 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
   
   const sendPasswordReset = async (email: string) => {
+      if (!auth) return;
       try {
           await sendPasswordResetEmail(auth, email);
           toast({
@@ -153,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resendVerificationEmail = async () => {
+    if (!auth) return;
     const firebaseUser = auth.currentUser;
     if (firebaseUser) {
         try {
@@ -173,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    if (!auth) return;
     try {
       await firebaseSignOut(auth);
     } catch (error) {
