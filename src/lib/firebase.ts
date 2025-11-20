@@ -12,33 +12,50 @@ const firebaseConfig: FirebaseOptions = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// Initialize Firebase App
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 let auth: Auth;
 let db: Firestore;
 let functions: Functions;
 
-// Check if we are on the client side before initializing Firebase services
-if (typeof window !== 'undefined') {
-    auth = getAuth(app);
-    db = getFirestore(app);
-    functions = getFunctions(app);
+// This function ensures Firebase services are only initialized on the client-side.
+function initializeFirebaseServices() {
+    if (typeof window !== 'undefined') {
+        if (!auth) {
+            auth = getAuth(app);
+            db = getFirestore(app);
+            functions = getFunctions(app);
 
-    // Connect to emulators in development
-    if (process.env.NODE_ENV === 'development') {
-        // Point to the emulators
-        // Make sure you're running the emulators with `firebase emulators:start`
-        try {
-            connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-            connectFirestoreEmulator(db, 'localhost', 8080);
-            connectFunctionsEmulator(functions, 'localhost', 5001);
-            console.log("Connected to Firebase Emulators");
-        } catch (error) {
-            console.error("Error connecting to Firebase emulators:", error);
+            if (process.env.NODE_ENV === 'development') {
+                try {
+                    // Check if emulators are already connected to prevent re-connecting on hot reloads
+                    // @ts-ignore - _isEmulator is an internal property but useful here
+                    if (!auth.emulatorConfig) {
+                        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+                    }
+                    // @ts-ignore
+                    if (!db._settings.host.includes('localhost')) {
+                         connectFirestoreEmulator(db, 'localhost', 8080);
+                    }
+                     // @ts-ignore
+                    if (!functions.emulatorOrigin) {
+                        connectFunctionsEmulator(functions, 'localhost', 5001);
+                    }
+                } catch (error) {
+                    console.error("Error connecting to Firebase emulators:", error);
+                }
+            }
         }
     }
 }
 
-// @ts-ignore
+// Immediately initialize services if on the client
+if (typeof window !== 'undefined') {
+    initializeFirebaseServices();
+}
+
+
+// Export the initialized services. The direct export is now safe because initialization is handled correctly.
+// The types are asserted as they will be defined on the client.
 export { app, auth, db, functions };
