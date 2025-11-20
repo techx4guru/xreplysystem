@@ -26,27 +26,28 @@ const firebaseConfig = {
 export function initializeFirebaseServices() {
   if (typeof window === "undefined") {
     // server — do not initialize client SDK here
-    console.warn("initializeFirebaseServices called on server — aborting.");
     return { app: null, auth: null, db: null, functions: null };
   }
 
   // Basic env validation: make this obvious in console
   if (!firebaseConfig.apiKey) {
-    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY. Check .env.local and restart dev server.", {
-      firebaseConfig,
-    });
-    throw new Error("Missing NEXT_PUBLIC_FIREBASE_API_KEY");
+    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY. Check .env.local and restart dev server.");
+    // Do not throw an error, just return nulls so the app doesn't crash.
+    return { app: null, auth: null, db: null, functions: null };
   }
 
   try {
-    _app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    if (!_app) {
+        _app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    }
   } catch (err) {
     // If initialization fails, log config (without revealing secret in prod) and rethrow
     console.error("Firebase initializeApp error (check config):", err, {
       projectId: firebaseConfig.projectId,
       authDomain: firebaseConfig.authDomain,
     });
-    throw err;
+    // Return nulls to prevent crash
+    return { app: null, auth: null, db: null, functions: null };
   }
 
   // Import the client-only modules lazily to ensure bundlers don't hoist them to server
