@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
+import { User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile, connectAuthEmulator } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -36,10 +36,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const initializeAuth = async () => {
       try {
-        const { auth, db, error } = await initializeFirebaseServices();
-        if (error === 'emulator-connection-failed') {
-          setEmulatorConnectionError(true);
+        const { auth, db } = await initializeFirebaseServices();
+
+        if (process.env.NODE_ENV === 'development' && auth) {
+            try {
+                // This is the key change: we try to connect and catch the specific error.
+                connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
+                console.info("Successfully connected to Firebase Auth emulator.");
+            } catch (e: any) {
+                 if (e.code === 'auth/emulator-config-failed') {
+                    console.warn("Could not connect to Firebase Auth emulator. Please run `firebase emulators:start`.");
+                    setEmulatorConnectionError(true);
+                 }
+            }
         }
+
 
         if (!auth || !db) {
           console.warn("Firebase services unavailable after init.");
@@ -102,7 +113,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticating(false);
   }
 
+  const showEmulatorConnectionError = (context: string) => {
+    toast({
+        variant: "destructive",
+        title: "Emulator Connection Failed",
+        description: `Could not connect to local Firebase services for ${context}. Please ensure emulators are running.`,
+      });
+  }
+
   const signInWithGoogle = async () => {
+    if (emulatorConnectionError) {
+      showEmulatorConnectionError("Google Sign-In");
+      return;
+    }
     const { auth } = getFirebaseInstancesIfReady();
     if (!auth) return handleAuthError({message: "Firebase is not configured."}, "Google Sign-In");
     
@@ -118,6 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUpWithEmail = async (email: string, password: string, displayName: string): Promise<User | null> => {
+     if (emulatorConnectionError) {
+      showEmulatorConnectionError("Sign-Up");
+      return null;
+    }
     const { auth, db } = getFirebaseInstancesIfReady();
     if (!auth || !db) {
         handleAuthError({message: "Firebase is not configured."}, "Sign-Up");
@@ -148,6 +175,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
+    if (emulatorConnectionError) {
+      showEmulatorConnectionError("Sign-In");
+      return null;
+    }
     const { auth } = getFirebaseInstancesIfReady();
     if (!auth) {
         handleAuthError({message: "Firebase is not configured."}, "Sign-In");
@@ -165,6 +196,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendPasswordReset = async (email: string) => {
+    if (emulatorConnectionError) {
+      showEmulatorConnectionError("Password Reset");
+      return;
+    }
     const { auth } = getFirebaseInstancesIfReady();
     if (!auth) return handleAuthError({message: "Firebase is not configured."}, "Password Reset");
     
@@ -177,6 +212,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resendVerificationEmail = async () => {
+    if (emulatorConnectionError) {
+      showEmulatorConnectionError("Resend Verification");
+      return;
+    }
     const { auth } = getFirebaseInstancesIfReady();
     if (!auth?.currentUser) return handleAuthError({message: "Not signed in."}, "Resend Verification");
 
@@ -244,3 +283,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+    
