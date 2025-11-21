@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MailCheck } from 'lucide-react';
-import { initializeFirebaseServices } from '@/lib/firebase';
+import { getFirebaseInstancesIfReady } from '@/lib/firebase';
 
 export default function CheckEmailPage() {
     const { user, resendVerificationEmail, signOut } = useAuth();
@@ -23,7 +23,7 @@ export default function CheckEmailPage() {
         if(!user || user.emailVerified) return;
 
         const poll = async () => {
-            const { auth } = await initializeFirebaseServices();
+            const { auth } = getFirebaseInstancesIfReady();
             if (!auth?.currentUser) return;
             
             await auth.currentUser.reload();

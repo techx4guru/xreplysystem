@@ -1,12 +1,13 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile, connectAuthEmulator } from 'firebase/auth';
+import { User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { initializeFirebaseServices, getFirebaseInstancesIfReady } from '@/lib/firebase';
 import { AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -36,21 +37,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const initializeAuth = async () => {
       try {
-        const { auth, db } = await initializeFirebaseServices();
+        const { auth, db, error } = await initializeFirebaseServices();
 
-        if (process.env.NODE_ENV === 'development' && auth) {
-            try {
-                // This is the key change: we try to connect and catch the specific error.
-                connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
-                console.info("Successfully connected to Firebase Auth emulator.");
-            } catch (e: any) {
-                 if (e.code === 'auth/emulator-config-failed') {
-                    console.warn("Could not connect to Firebase Auth emulator. Please run `firebase emulators:start`.");
-                    setEmulatorConnectionError(true);
-                 }
-            }
+        if (error?.message === "Emulator connection failed") {
+          setEmulatorConnectionError(true);
         }
-
 
         if (!auth || !db) {
           console.warn("Firebase services unavailable after init.");
@@ -87,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } catch (err) {
         console.error("Failed to initialize Firebase services in AuthProvider:", err);
+        setEmulatorConnectionError(true);
         setLoading(false);
       }
     };
@@ -244,7 +236,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         {emulatorConnectionError && (
             <div className="bg-yellow-500 text-black p-3 text-center text-sm font-semibold flex items-center justify-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
-                <span>Could not connect to Firebase Emulators. Please run <code>firebase emulators:start</code> and refresh the page.</span>
+                <span>Could not connect to Firebase Emulators. Is `firebase emulators:start` running?</span>
+                 <Link href="/dev/env-checker" className="underline font-bold">Run Env Checker</Link>
             </div>
         )}
         {loading ? (
@@ -283,5 +276,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-    

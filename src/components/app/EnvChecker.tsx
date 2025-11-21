@@ -18,6 +18,7 @@ export default function EnvChecker() {
     push("NEXT_PUBLIC_FIREBASE_API_KEY: " + (process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? process.env.NEXT_PUBLIC_FIREBASE_API_KEY.slice(0,8) + "..." : "<missing or not exposed>"));
     push("NEXT_PUBLIC_FIREBASE_PROJECT_ID: " + (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "<missing or not exposed>"));
     push("NODE_ENV: " + process.env.NODE_ENV);
+    push("NEXT_PUBLIC_USE_FIREBASE_EMULATOR: " + (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR ?? "<unset>"));
     
     await new Promise(res => setTimeout(res, 50));
     push("--------------------------------------");
@@ -26,7 +27,7 @@ export default function EnvChecker() {
     if(fetchResult.ok) {
         push("✅ Fetch test SUCCEEDED. Status: " + fetchResult.status);
     } else {
-        push("❌ Fetch test FAILED. Status: " + fetchResult.status);
+        push("❌ Fetch test FAILED. Status: " + (fetchResult.status || fetchResult.error));
     }
     push("Response Snippet: " + JSON.stringify(fetchResult.bodySnippet || fetchResult.error));
     if(!fetchResult.ok) {
@@ -39,7 +40,7 @@ export default function EnvChecker() {
     try {
       const res = await initializeFirebaseServices();
       push("✅ Firebase init SUCCEEDED: ready=" + Boolean(res.ready));
-      push("Instances: " + JSON.stringify({ hasAuth: !!res.auth, hasDb: !!res.db, hasFunctions: !!res.functions }));
+      push("Instances: " + JSON.stringify({ hasAuth: !!res.auth, hasDb: !!res.db, hasFunctions: !!res.functions, error: res.error?.message }));
     } catch (err: any) {
       push("❌ Firebase init FAILED: " + String(err.message || err));
       push("💡 TIP: This usually happens if the API key is invalid, expired, or has incorrect HTTP referrer restrictions in the Google Cloud Console for that key.")
