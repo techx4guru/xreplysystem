@@ -42,6 +42,16 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError(null);
+    try {
+        await signInWithGoogle();
+    } catch (err) {
+        const mappedError = mapFirebaseAuthError(err);
+        setError(mappedError.message);
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="mx-auto max-w-sm w-full">
@@ -71,10 +81,18 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
+             <div aria-live="polite" className="sr-only">
+                {error}
+             </div>
+             {error && (
+                <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                    {error}
+                </div>
+            )}
              <Button 
                 variant="outline" 
                 className="w-full" 
-                onClick={signInWithGoogle}
+                onClick={handleGoogleLogin}
                 disabled={isAuthenticating}
             >
               {isAuthenticating && !email ? (
@@ -97,14 +115,6 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleEmailLogin} className="grid gap-4">
-                <div aria-live="polite" className="sr-only">
-                  {error}
-                </div>
-                {error && (
-                    <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
-                        {error}
-                    </div>
-                )}
                 <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isAuthenticating} />
