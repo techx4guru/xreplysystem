@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { mapFirebaseAuthError } from '@/lib/authErrors';
 
 export default function SignupPage() {
   const { user, signUpWithEmail, isAuthenticating } = useAuth();
@@ -36,9 +37,14 @@ export default function SignupPage() {
         return;
     }
     
-    const newUser = await signUpWithEmail(email, password, displayName);
-    if(newUser) {
-        router.push('/check-email');
+    try {
+        const newUser = await signUpWithEmail(email, password, displayName);
+        if(newUser) {
+            router.push('/check-email');
+        }
+    } catch (err) {
+        const mappedError = mapFirebaseAuthError(err);
+        setError(mappedError.message);
     }
   };
 
@@ -71,6 +77,14 @@ export default function SignupPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleEmailSignup} className="grid gap-4">
+            <div aria-live="polite" className="sr-only">
+              {error}
+            </div>
+            {error && (
+                <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                    {error}
+                </div>
+            )}
             <div className="grid gap-2">
                 <Label htmlFor="displayName">Display Name</Label>
                 <Input id="displayName" type="text" placeholder="John Doe" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={isAuthenticating} />
@@ -87,7 +101,7 @@ export default function SignupPage() {
                 <Label htmlFor="confirm-password">Confirm Password</Label>
                 <Input id="confirm-password" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isAuthenticating} />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            
              <Button type="submit" className="w-full" disabled={isAuthenticating}>
                 {isAuthenticating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Create Account'}
             </Button>

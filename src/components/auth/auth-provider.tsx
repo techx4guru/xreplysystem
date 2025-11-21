@@ -75,17 +75,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
   
   const handleAuthError = (error: any, context: string) => {
+    // This will be handled by the UI components now, but we can still log it.
     console.error(`Error in ${context}:`, error);
-    let description = "An unexpected error occurred.";
-    if (error.code === 'auth/network-request-failed') {
-      description = "Network error. Please check your connection or see the /dev/env-checker page."
-    } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-      description = "Invalid email or password."
-    } else {
-      description = error.message;
-    }
-    toast({ variant: "destructive", title: "Authentication Error", description });
     setIsAuthenticating(false);
+    throw error; // Re-throw the error to be caught by the form's catch block
   }
 
   const checkAuthReady = () => {
@@ -155,7 +148,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await sendPasswordResetEmail(auth, email);
       toast({ title: "Password Reset Email Sent", description: "If an account exists, you will receive reset instructions." });
     } catch (error: any) {
-      handleAuthError(error, "Password Reset");
+        const { mapFirebaseAuthError } = await import('@/lib/authErrors');
+        const mappedError = mapFirebaseAuthError(error);
+        toast({ variant: "destructive", title: "Password Reset Error", description: mappedError.message });
     }
   };
 
@@ -165,7 +160,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await sendEmailVerification(auth.currentUser);
       toast({ title: "Verification Email Sent", description: "A new verification email has been sent." });
     } catch (error: any) {
-      handleAuthError(error, "Resend Verification");
+        const { mapFirebaseAuthError } = await import('@/lib/authErrors');
+        const mappedError = mapFirebaseAuthError(error);
+        toast({ variant: "destructive", title: "Verification Error", description: mappedError.message });
     }
   };
 

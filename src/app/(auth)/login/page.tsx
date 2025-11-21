@@ -8,12 +8,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { mapFirebaseAuthError } from '@/lib/authErrors';
 
 export default function LoginPage() {
   const { user, signInWithGoogle, signInWithEmail, isAuthenticating } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -27,8 +29,17 @@ export default function LoginPage() {
   
   const handleEmailLogin = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    await signInWithEmail(email, password);
+    setError(null);
+    if (!email || !password) {
+        setError("Please enter both email and password.");
+        return;
+    }
+    try {
+        await signInWithEmail(email, password);
+    } catch (err) {
+        const mappedError = mapFirebaseAuthError(err);
+        setError(mappedError.message);
+    }
   };
 
   return (
@@ -86,6 +97,14 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleEmailLogin} className="grid gap-4">
+                <div aria-live="polite" className="sr-only">
+                  {error}
+                </div>
+                {error && (
+                    <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                        {error}
+                    </div>
+                )}
                 <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isAuthenticating} />

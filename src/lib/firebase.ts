@@ -1,8 +1,14 @@
 // src/lib/firebase.ts
+// Clean, stable Firebase initializer for Next.js App Router (client-only)
+
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
-import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
+
+// --- IMPORTANT ---
+// All values MUST come from NEXT_PUBLIC_ env vars.
+// Set them in Firebase Studio → Environment Variables AND in .env.local locally.
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,51 +19,27 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp;
-let auth: ReturnType<typeof getAuth>;
-let db: ReturnType<typeof getFirestore>;
-let functions: ReturnType<typeof getFunctions>;
+// Prevent Firebase from initializing on the server
+let app: FirebaseApp | null = null;
 
-try {
+if (typeof window !== "undefined") {
+  // Running in browser → safe to initialize Firebase
   if (!getApps().length) {
     if (!firebaseConfig.apiKey) {
-      // This error will be caught by the AuthProvider to display a UI message.
-      throw new Error("Firebase config is missing. Please set environment variables.");
+      console.error("❌ Firebase config missing. Set your NEXT_PUBLIC_FIREBASE_* env variables.");
+      throw new Error("Firebase config missing");
     }
     app = initializeApp(firebaseConfig);
   } else {
     app = getApp();
   }
-
-  auth = getAuth(app);
-  db = getFirestore(app);
-  functions = getFunctions(app);
-
-  if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
-    try {
-      console.log("Connecting to Firebase Emulators...");
-      connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
-      connectFirestoreEmulator(db, "localhost", 8080);
-      connectFunctionsEmulator(functions, "localhost", 5001);
-      console.info("Successfully connected to Firebase Emulators.");
-    } catch (e) {
-        console.warn("Could not connect to Firebase Emulators. Please run `firebase emulators:start`.");
-    }
-  }
-
-} catch (error) {
-    console.error("Firebase initialization failed:", error);
-    // Gracefully handle the error by exporting null/undefined services.
-    // The AuthProvider will detect this and show an error UI.
-    const mockAuth = { onAuthStateChanged: () => () => {} } as unknown as ReturnType<typeof getAuth>;
-    // @ts-ignore
-    app = null;
-    auth = mockAuth;
-    // @ts-ignore
-    db = null;
-    // @ts-ignore
-    functions = null;
+} else {
+  // On server → return null-safe placeholders
+  app = null;
 }
 
-
-export { app, auth, db, functions };
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const functions = app
+  ? getFunctions(app, process.env.NEXT_PUBLIC_FUNCTIONS_BASE_URL || undefined)
+  : null;
