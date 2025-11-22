@@ -1,91 +1,88 @@
 
-'use client';
-import { AppHeader } from "@/components/app/header";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter } from "@/components/ui/sidebar";
-import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, Bot, HardDrive, LogOut, Settings, BarChart, ShieldCheck } from "lucide-react";
+"use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { useAuthClaims } from "@/hooks/useAuthClaims";
+// import { getPendingCounts } from "@/lib/adminApi";
+import { Loader2 } from "lucide-react";
 
-const adminNavItems = [
-    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/users', label: 'Users', icon: Users },
-    { href: '/admin/content', label: 'Content', icon: Bot },
-    { href: '/admin/audit', label: 'Audit Logs', icon: HardDrive },
-    { href: '/admin/system-settings', label: 'System Settings', icon: Settings },
-];
-
+// Mock function until API is fully wired
+async function getPendingCounts() {
+  return Promise.resolve({ content: 3, jobs: 1 });
+}
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
-    const { signOut } = useAuth();
+  const path = usePathname();
+  const { user, signOut } = useAuth();
+  const { claims, loading } = useAuthClaims();
+  const isAdmin = !!claims?.admin;
+  const isSuper = claims?.role === "superadmin";
+  const [counts, setCounts] = useState<{ [k: string]: number }>({});
 
-    return (
-        <div className="flex min-h-screen">
-          <Sidebar>
-            <SidebarHeader>
-                 <div className="flex items-center gap-2 p-2">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-8 w-8 text-primary"
-                    >
-                        <path d="M11.767 19.089c4.91 0 7.43-4.141 7.43-7.43 0-1.3-.323-2.52-.89-3.635" />
-                        <path d="M14.534 9.873a4.136 4.136 0 0 0-4.66-4.66" />
-                        <path d="M19.199 4.801c-1.115-.568-2.315-.89-3.635-.89-3.289 0-7.43 2.52-7.43 7.43 0 4.91 4.141 7.43 7.43 7.43 1.3 0 2.52-.323 3.635-.89" />
-                        <path d="M9.873 9.466a4.136 4.136 0 0 1 4.66 4.66" />
-                        <path d="M4.801 4.801C3.685 5.915 2.5 7.69 2.5 9.873c0 3.289 2.52 7.43 7.43 7.43" />
-                    </svg>
-                    <div className="flex flex-col">
-                        <span className="font-headline text-xl font-semibold">Autopilot</span>
-                        <span className="text-sm font-medium text-destructive">Admin Panel</span>
-                    </div>
-                 </div>
-            </SidebarHeader>
-            <SidebarContent>
-                 <SidebarMenu>
-                     {adminNavItems.map(item => (
-                        <SidebarMenuItem key={item.href}>
-                             <SidebarMenuButton asChild isActive={pathname === item.href}>
-                                 <Link href={item.href}>
-                                     <item.icon />
-                                     <span>{item.label}</span>
-                                 </Link>
-                             </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    ))}
-                 </SidebarMenu>
-            </SidebarContent>
-            <SidebarFooter>
-                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                        <Link href="/dashboard">
-                           <LayoutDashboard/>
-                           <span>Back to App</span>
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                 <SidebarMenuItem>
-                    <SidebarMenuButton onClick={signOut}>
-                        <LogOut/>
-                        <span>Logout</span>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-            </SidebarFooter>
-          </Sidebar>
-          <div className="flex-1 flex flex-col">
-            <AppHeader />
-            <main className="flex-1 p-4 md:p-6 lg:p-8 bg-background">
-                {children}
-            </main>
-          </div>
+  useEffect(() => {
+    let mounted = true;
+    if (!isAdmin) return;
+    getPendingCounts().then(c => { if (mounted) setCounts(c); }).catch(() => { });
+    return () => { mounted = false; };
+  }, [isAdmin]);
+
+  if (loading) {
+    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  if (!isAdmin) {
+    return <div className="p-6">Unauthorized — admin access required. You may need to sign out and sign back in to refresh your permissions.</div>;
+  }
+
+  const nav = [
+    { title: "Overview", href: "/admin" },
+    { title: "Users", href: "/admin/users", role: "superadmin" },
+    { title: "Roles & Access", href: "/admin/roles", role: "superadmin" },
+    { title: "Content Moderation", href: "/admin/content", badge: counts.content || 0 },
+    { title: "Queues & Jobs", href: "/admin/jobs", badge: counts.jobs || 0 },
+    { title: "Scheduler", href: "/admin/scheduler" },
+    { title: "Composer", href: "/admin/composer" },
+    { title: "Queue", href: "/admin/queue" },
+    { title: "Analytics", href: "/admin/analytics" },
+    { title: "Monitoring & Logs", href: "/admin/monitoring" },
+    { title: "Audit Logs", href: "/admin/audit" },
+    { title: "Exports / GDPR", href: "/admin/exports" },
+    { title: "Feature Flags", href: "/admin/flags" },
+    { title: "Impersonation", href: "/admin/impersonate", role: "superadmin" },
+    { title: "Backups & Restore", href: "/admin/backups", role: "superadmin" },
+    { title: "Settings", href: "/admin/settings" },
+    { title: "Help & Runbook", href: "/admin/runbook" },
+  ];
+
+  return (
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+      <aside className="w-64 bg-white dark:bg-gray-950 border-r dark:border-gray-800 flex flex-col">
+        <div className="p-4 font-bold border-b dark:border-gray-800">Admin Panel</div>
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+          {nav.map(item => {
+            if (item.role === 'superadmin' && !isSuper) return null;
+            
+            const active = (item.href === '/admin' && path === '/admin') || (item.href !== '/admin' && path.startsWith(item.href));
+
+            return (
+              <Link key={item.href} href={item.href} className={`flex items-center justify-between px-3 py-2 rounded text-sm ${active ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <span>{item.title}</span>
+                {item.badge ? <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded-full">{item.badge}</span> : null}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="p-4 border-t dark:border-gray-800 space-y-2">
+            <Link href="/dashboard" className="flex items-center justify-center px-3 py-2 rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-800">Back to App</Link>
+            <button onClick={signOut} className="w-full text-center text-sm px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">Logout</button>
         </div>
-    );
+      </aside>
+
+      <main className="flex-1 p-6">
+        {children}
+      </main>
+    </div>
+  );
 }

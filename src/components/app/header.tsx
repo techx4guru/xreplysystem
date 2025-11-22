@@ -8,10 +8,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { Bell, LogOut, Search, Settings, Shield } from "lucide-react";
 import Link from "next/link";
 import { SidebarTrigger } from "../ui/sidebar";
+import { useAuthClaims } from "@/hooks/useAuthClaims";
 
 export function AppHeader() {
     const { user, signOut } = useAuth();
-    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+    const { claims } = useAuthClaims();
+    const isAdmin = !!claims?.admin;
     
     const getInitials = (name: string | null | undefined) => {
         if (!name) return 'U';
