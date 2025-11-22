@@ -1,3 +1,3 @@
-export default function AdminSettings() {
-  return <h1 className="text-xl font-semibold">Feature Flags</h1>;
+export default function AdminSystemSettingsPage() {
+  return <h1 className="text-xl font-semibold">Feature Flags & System Settings</h1>;
 }
