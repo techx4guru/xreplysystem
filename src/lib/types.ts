@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type UserRole = 'admin' | 'operator';
@@ -9,6 +10,16 @@ export interface UserProfile {
   photoURL: string | null;
   role: UserRole;
   emailVerified?: boolean;
+  preferences?: {
+    notifications?: {
+        email: boolean;
+        push: boolean;
+    };
+    theme?: 'system' | 'light' | 'dark';
+    language?: string;
+  };
+  connectedProviders?: string[];
+  updatedAt?: Timestamp;
 }
 
 export interface Author {

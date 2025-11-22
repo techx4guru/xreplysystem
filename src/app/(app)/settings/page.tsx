@@ -1,9 +1,14 @@
+'use client';
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProfileForm } from "@/components/settings/ProfileForm";
+import { SecurityForm } from "@/components/settings/SecurityForm";
+import { DangerZone } from "@/components/settings/DangerZone";
+import { useAuth } from "@/hooks/use-auth";
 
 const RateLimitConfig = () => (
   <Card>
@@ -40,8 +45,7 @@ const SafetySettings = () => (
         <Input id="toxicity" type="number" defaultValue={0.8} step="0.1" min="0" max="1" />
       </div>
        <div className="space-y-2">
-        <Label htmlFor="political">Political</Label>
-        <Input id="political" type="number" defaultValue={0.7} step="0.1" min="0" max="1" />
+        <Label htmlFor="political">Political</Label>        <Input id="political" type="number" defaultValue={0.7} step="0.1" min="0" max="1" />
       </div>
        <div className="space-y-2">
         <Label htmlFor="medical">Medical</Label>
@@ -94,46 +98,70 @@ const ApiKeySettings = () => (
 )
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+
+  if (!user) {
+    return null; // Or a loading spinner, ProtectedRoute handles redirect
+  }
+    
+  const isAdmin = user.role === 'admin';
+
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
+    <ProtectedRoute>
       <div className="space-y-6">
         <div>
             <h1 className="text-3xl font-bold font-headline">Settings</h1>
-            <p className="text-muted-foreground">Configure the core parameters of the Autopilot system.</p>
+            <p className="text-muted-foreground">Manage your account and application settings.</p>
         </div>
 
-        <Tabs defaultValue="general">
+        <Tabs defaultValue="profile">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="safety">Safety</TabsTrigger>
-            <TabsTrigger value="content">Content</TabsTrigger>
-            <TabsTrigger value="apiKeys">API Keys</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="system">System</TabsTrigger>
+            <TabsTrigger value="danger">Danger Zone</TabsTrigger>
           </TabsList>
-          <TabsContent value="general">
+          <TabsContent value="profile">
             <div className="grid md:grid-cols-2 gap-6 pt-4">
-              <RateLimitConfig />
+                <ProfileForm />
             </div>
           </TabsContent>
-          <TabsContent value="safety">
+          <TabsContent value="security">
              <div className="grid md:grid-cols-2 gap-6 pt-4">
-                <SafetySettings />
+                <SecurityForm />
              </div>
           </TabsContent>
-          <TabsContent value="content">
-            <div className="grid md:grid-cols-2 gap-6 pt-4">
-                <ContentSettings />
-            </div>
+          <TabsContent value="system">
+             {isAdmin ? (
+                 <div className="grid md:grid-cols-2 gap-6 pt-4">
+                    <RateLimitConfig />
+                    <SafetySettings />
+                    <ContentSettings />
+                    <ApiKeySettings />
+                 </div>
+             ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>System Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p>You do not have permission to view or edit system settings.</p>
+                    </CardContent>
+                </Card>
+             )}
           </TabsContent>
-           <TabsContent value="apiKeys">
+           <TabsContent value="danger">
             <div className="grid md:grid-cols-2 gap-6 pt-4">
-                <ApiKeySettings />
+                <DangerZone />
             </div>
           </TabsContent>
         </Tabs>
         
-        <div className="flex justify-end">
-            <Button>Save All Settings</Button>
-        </div>
+        {isAdmin && (
+            <div className="flex justify-end">
+                <Button>Save System Settings</Button>
+            </div>
+        )}
       </div>
     </ProtectedRoute>
   );

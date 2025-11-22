@@ -23,10 +23,16 @@ service cloud.firestore {
       return isAuthenticated() && (getRole(request.auth.uid) == 'operator' || isAdmin());
     }
 
-    // User profiles can be read by anyone, but only the user themselves or an admin can write.
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if request.auth.uid == userId || isAdmin();
+    // User profiles can be read and written to only by the user themselves.
+    match /users/{uid} {
+      allow read, write: if isAuthenticated() && request.auth.uid == uid;
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+    }
+    
+    // Audit logs can only be created by the user they pertain to. Reads are disallowed.
+    match /audit.user_actions/{docId} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if false;
     }
 
     // Authors can be read by any operator. Only admins can create/update/delete.
