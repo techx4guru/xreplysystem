@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAuthClaims } from "@/hooks/useAuthClaims";
 // import { getPendingCounts } from "@/lib/adminApi";
 import { Loader2 } from "lucide-react";
+import { Button } from "../ui/button";
 
 // Mock function until API is fully wired
 async function getPendingCounts() {
@@ -33,7 +34,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAdmin) {
-    return <div className="p-6">Unauthorized — admin access required. You may need to sign out and sign back in to refresh your permissions.</div>;
+    return (
+        <div className="flex flex-col items-center justify-center h-screen w-full text-center">
+            <h1 className="text-2xl font-bold">Unauthorized</h1>
+            <p className="text-muted-foreground">You do not have permission to view this page. Admin access is required.</p>
+            <div className="mt-4 flex gap-2">
+                <Button asChild><Link href="/dashboard">Go to Dashboard</Link></Button>
+                <Button variant="secondary" onClick={signOut}>Sign Out</Button>
+            </div>
+        </div>
+    );
   }
 
   const nav = [

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 
 export default function AdminDashboardPage() {
-    // In a real app, this data would be fetched server-side
+    // In a real app, this data would be fetched server-side or via a client-side hook
     const kpiData = {
         totalUsers: 1234,
         activeUsers: 567,
