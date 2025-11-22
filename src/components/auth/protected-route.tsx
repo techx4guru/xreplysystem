@@ -22,9 +22,16 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }, [user, loading, router]);
   
   useEffect(() => {
-    if (user && allowedRoles && !allowedRoles.includes(user.role)) {
-        // Redirect to a more appropriate page if role doesn't match
-        router.push('/dashboard');
+    if (user && allowedRoles) {
+        const userRoles = [user.role || 'operator'];
+        if(user.role === 'superadmin') userRoles.push('admin');
+        
+        const hasPermission = userRoles.some(role => allowedRoles.includes(role));
+
+        if (!hasPermission) {
+            // Redirect to a more appropriate page if role doesn't match
+            router.push('/dashboard');
+        }
     }
   }, [user, allowedRoles, router]);
 
@@ -34,9 +41,14 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return null;
   }
   
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // You can return a loading spinner or a "not authorized" page
-    return null;
+  if (allowedRoles) {
+    const userRoles = [user.role || 'operator'];
+    if(user.role === 'superadmin') userRoles.push('admin');
+    const hasPermission = userRoles.some(role => allowedRoles.includes(role));
+
+    if (!hasPermission) {
+        return null;
+    }
   }
 
   return <>{children}</>;

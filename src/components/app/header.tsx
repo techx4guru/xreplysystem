@@ -1,3 +1,4 @@
+
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -5,12 +6,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, Home, LogOut, MessageSquare, PanelLeft, Search, Settings, Users } from "lucide-react";
+import { Bell, Home, LogOut, MessageSquare, PanelLeft, Search, Settings, Users, Shield } from "lucide-react";
 import Link from "next/link";
 import { SidebarTrigger } from "../ui/sidebar";
 
 export function AppHeader() {
     const { user, signOut } = useAuth();
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
     
     const getInitials = (name: string | null | undefined) => {
         if (!name) return 'U';
@@ -43,6 +45,7 @@ export function AppHeader() {
                     <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
                     <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
                 </Avatar>
+                 {isAdmin && <Shield className="absolute bottom-0 right-0 h-4 w-4 fill-primary text-primary-foreground stroke-primary-foreground" />}
             </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -54,6 +57,14 @@ export function AppHeader() {
                     Settings
                 </Link>
             </DropdownMenuItem>
+             {isAdmin && (
+                <DropdownMenuItem asChild>
+                    <Link href="/admin" className="flex items-center w-full">
+                        <Shield className="mr-2 h-4 w-4" />
+                        Admin Panel
+                    </Link>
+                </DropdownMenuItem>
+             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={signOut}>
                 <LogOut className="mr-2 h-4 w-4" />

@@ -5,7 +5,7 @@ This document provides a guide for administrators on how to manage the applicati
 
 ## 1. Bootstrapping the First Admin
 
-To use the admin panel, at least one user must have an `admin` or `superadmin` custom claim in Firebase Auth.
+To use the admin panel, at least one user must have an `admin` or `superadmin` custom claim in Firebase Auth. The initial admin must be seeded using a secure script that has access to your project's service account credentials.
 
 **Prerequisites:**
 - You must be authenticated with the Google Cloud SDK with permissions for the Firebase project. Run `gcloud auth application-default login`.
@@ -33,7 +33,7 @@ To use the admin panel, at least one user must have an `admin` or `superadmin` c
 
 4.  **Verify:**
     - Go to the Firebase Console -> Authentication. Find the user and check their "Identifier" column. You may need to refresh. The claim isn't directly visible but is active.
-    - Log in to the application as that user. You should now see an "Admin" entry in the sidebar, which will take you to `/admin`.
+    - **Important**: Log in to the application as the newly-seeded admin. You may need to sign out and sign back in for the new claims to take effect. After signing in, you should see an "Admin" entry in the user menu (top-right) and be able to access `/admin`.
 
 ## 2. Using the Admin Panel
 

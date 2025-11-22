@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import {
   Sidebar,
@@ -61,6 +62,7 @@ interface NavItem {
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   const renderNavItems = (items: NavItem[]) => {
     return items.map((item) => {
@@ -113,14 +115,14 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>{renderNavItems(navItems)}</SidebarMenu>
         
-        {user?.role === 'admin' && (
+        {isAdmin && (
             <>
             <div className="px-4 py-2 text-xs font-semibold text-muted-foreground/70 uppercase">Admin</div>
             <SidebarMenu>{renderNavItems(adminNavItems)}</SidebarMenu>
             </>
         )}
         
-        {process.env.NODE_ENV === 'development' && user?.role === 'admin' && (
+        {process.env.NODE_ENV === 'development' && isAdmin && (
              <>
                 <div className="px-4 py-2 text-xs font-semibold text-muted-foreground/70 uppercase">Developer</div>
                 <SidebarMenu>{renderNavItems(devNavItems)}</SidebarMenu>
