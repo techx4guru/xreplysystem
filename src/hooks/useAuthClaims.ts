@@ -2,24 +2,39 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { getFirebaseInstancesIfReady } from "@/lib/firebase";
+import type { User } from "firebase/auth";
 
 export function useAuthClaims() {
-  const { user } = useAuth();
+  const { user: userProfile, loading: authLoading } = useAuth(); // Renamed to avoid confusion
   const [claims, setClaims] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
+    let isMounted = true;
+    const { auth } = getFirebaseInstancesIfReady();
+    const firebaseUser = auth?.currentUser;
+
+    if (authLoading) {
+      // Wait for the initial auth state to be determined
+      return;
+    }
+
+    if (!firebaseUser) {
       setClaims(null);
       setLoading(false);
       return;
     }
 
-    let isMounted = true;
-
-    const update = async () => {
+    const update = async (user: User | null) => {
+      if (!isMounted || !user) {
+        setClaims(null);
+        setLoading(false);
+        return;
+      }
       try {
-        const token = await user.getIdTokenResult(true);
+        setLoading(true);
+        const token = await user.getIdTokenResult(true); // force a refresh
         if (isMounted) {
           setClaims(token.claims || {});
         }
@@ -35,12 +50,17 @@ export function useAuthClaims() {
       }
     };
 
-    update();
+    update(firebaseUser);
+
+    const unsubscribe = auth.onIdTokenChanged(async (user) => {
+      await update(user);
+    });
 
     return () => {
       isMounted = false;
+      unsubscribe();
     };
-  }, [user]);
+  }, [userProfile, authLoading]);
 
   return { claims, loading };
 }
