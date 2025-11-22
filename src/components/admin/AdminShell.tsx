@@ -3,7 +3,7 @@
 import { AppHeader } from "@/components/app/header";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, Bot, HardDrive, LogOut, Settings } from "lucide-react";
+import { LayoutDashboard, Users, Bot, HardDrive, LogOut, Settings, BarChart, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
