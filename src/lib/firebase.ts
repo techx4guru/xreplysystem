@@ -81,6 +81,26 @@ export async function initializeFirebaseServices() {
            _initError = e as Error;
         }
       }
+      
+      // <<DEV DEBUG HELPERS - REMOVE BEFORE PROD>>
+      if (typeof window !== "undefined" && process.env.NODE_ENV === 'development') {
+        // @ts-ignore
+        window.__auth = _auth;
+        // @ts-ignore
+        window.__getAuthClaims = async (force=false) => {
+          // @ts-ignore
+          if (!window.__auth || !window.__auth.currentUser) return null;
+          try {
+            // @ts-ignore
+            const tr = await window.__auth.currentUser.getIdTokenResult(force);
+            // @ts-ignore
+            return { claims: tr.claims, uid: window.__auth.currentUser.uid, email: window.__auth.currentUser.email };
+          } catch (e: any) {
+            return { error: e?.message || String(e) };
+          }
+        };
+      }
+
 
       _initialized = true;
       return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: true, error: _initError };
@@ -96,3 +116,4 @@ export async function initializeFirebaseServices() {
 export function getFirebaseInstancesIfReady() {
   return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: _initialized, error: _initError };
 }
+export const auth = _auth;

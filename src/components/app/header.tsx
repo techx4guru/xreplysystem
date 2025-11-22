@@ -12,7 +12,7 @@ import { useAuthClaims } from "@/hooks/useAuthClaims";
 
 export function AppHeader() {
     const { user, signOut } = useAuth();
-    const { claims } = useAuthClaims();
+    const { claims } = useAuthClaims({ refreshOnMount: true });
     const isAdmin = !!claims?.admin;
     
     const getInitials = (name: string | null | undefined) => {
@@ -62,7 +62,7 @@ export function AppHeader() {
                 <DropdownMenuItem asChild>
                     <Link href="/admin" className="flex items-center w-full">
                         <Shield className="mr-2 h-4 w-4" />
-                        Admin Panel
+                        Admin
                     </Link>
                 </DropdownMenuItem>
              )}

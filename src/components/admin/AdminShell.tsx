@@ -1,23 +1,17 @@
-
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthClaims } from "@/hooks/useAuthClaims";
-// import { getPendingCounts } from "@/lib/adminApi";
+import { getPendingCounts } from "@/lib/adminApi";
 import { Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
-
-// Mock function until API is fully wired
-async function getPendingCounts() {
-  return Promise.resolve({ content: 3, jobs: 1 });
-}
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const { user, signOut } = useAuth();
-  const { claims, loading } = useAuthClaims();
+  const { claims, loading } = useAuthClaims({ refreshOnMount: true });
   const isAdmin = !!claims?.admin;
   const isSuper = claims?.role === "superadmin";
   const [counts, setCounts] = useState<{ [k: string]: number }>({});
@@ -85,8 +79,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="p-4 border-t dark:border-gray-800 space-y-2">
-            <Link href="/dashboard" className="flex items-center justify-center px-3 py-2 rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-800">Back to App</Link>
-            <button onClick={signOut} className="w-full text-center text-sm px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800">Logout</button>
+            <Button asChild variant="outline" className="w-full"><Link href="/dashboard">Back to App</Link></Button>
+            <Button onClick={signOut} className="w-full" variant="ghost">Logout</Button>
         </div>
       </aside>
 
