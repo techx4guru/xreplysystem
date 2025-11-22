@@ -3,7 +3,7 @@
 import { AppHeader } from "@/components/app/header";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, Bot, HardDrive, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Bot, HardDrive, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -11,7 +11,8 @@ const adminNavItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/users', label: 'Users', icon: Users },
     { href: '/admin/content', label: 'Content', icon: Bot },
-    { href: '/admin/logs', label: 'Logs', icon: HardDrive },
+    { href: '/admin/audit', label: 'Audit Logs', icon: HardDrive },
+    { href: '/admin/system-settings', label: 'System Settings', icon: Settings },
 ];
 
 

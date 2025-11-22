@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import {
   Sidebar,
@@ -20,7 +21,8 @@ import {
   LogOut,
   Mail,
   Settings,
-  Webhook
+  Webhook,
+  FlaskConical,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
@@ -41,6 +43,10 @@ const adminNavItems: NavItem[] = [
     { href: '/integrations', label: 'Integrations', icon: Webhook },
 ]
 
+const devNavItems: NavItem[] = [
+    { href: '/dev/env-checker', label: 'Env Checker', icon: FlaskConical },
+]
+
 const helpNavItems: NavItem[] = [
   { href: '/help', label: 'Help & Runbook', icon: HelpCircle },
 ];
@@ -56,6 +62,7 @@ interface NavItem {
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   const renderNavItems = (items: NavItem[]) => {
     return items.map((item) => {
@@ -108,12 +115,20 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>{renderNavItems(navItems)}</SidebarMenu>
         
-        {user?.role === 'admin' && (
+        {isAdmin && (
             <>
             <div className="px-4 py-2 text-xs font-semibold text-muted-foreground/70 uppercase">Admin</div>
             <SidebarMenu>{renderNavItems(adminNavItems)}</SidebarMenu>
             </>
         )}
+        
+        {process.env.NODE_ENV === 'development' && isAdmin && (
+             <>
+                <div className="px-4 py-2 text-xs font-semibold text-muted-foreground/70 uppercase">Developer</div>
+                <SidebarMenu>{renderNavItems(devNavItems)}</SidebarMenu>
+             </>
+        )}
+
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>{renderNavItems(helpNavItems)}</SidebarMenu>
