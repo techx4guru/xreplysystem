@@ -4,9 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, Home, LogOut, MessageSquare, PanelLeft, Search, Settings, Users, Shield } from "lucide-react";
+import { Bell, LogOut, Search, Settings, Shield } from "lucide-react";
 import Link from "next/link";
 import { SidebarTrigger } from "../ui/sidebar";
 
