@@ -4,10 +4,11 @@
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { updateProfile, updateEmail, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { auth, db, storage, functions } from "@/lib/firebase";
+import { getFirebaseInstancesIfReady, initializeFirebaseServices } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
 
 async function logUserAction(action: string, meta: object = {}) {
+    const { auth, db } = getFirebaseInstancesIfReady();
     if (!auth?.currentUser || !db) return;
     try {
         const auditRef = doc(db, 'audit.user_actions', new Date().toISOString() + '_' + auth.currentUser.uid);
@@ -24,6 +25,7 @@ async function logUserAction(action: string, meta: object = {}) {
 
 
 export async function saveUserProfile(uid: string, data: { displayName?: string }, avatarFile?: File | null) {
+  const { auth, db, storage } = await initializeFirebaseServices();
   if (!auth?.currentUser || !db || !storage) throw new Error("Firebase not initialized.");
 
   let photoURL = auth.currentUser.photoURL;
@@ -68,6 +70,7 @@ export async function saveUserProfile(uid: string, data: { displayName?: string 
 }
 
 async function reauthenticate(password: string) {
+    const { auth } = getFirebaseInstancesIfReady();
     if (!auth?.currentUser?.email) throw new Error("User or email not found for re-authentication.");
     const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
     await reauthenticateWithCredential(auth.currentUser, credential);
@@ -76,6 +79,7 @@ async function reauthenticate(password: string) {
 
 
 export async function updateEmailWithReauth(password: string, newEmail: string) {
+    const { auth } = getFirebaseInstancesIfReady();
     if (!auth?.currentUser) throw new Error("Not authenticated.");
     await reauthenticate(password);
     await updateEmail(auth.currentUser, newEmail);
@@ -84,6 +88,7 @@ export async function updateEmailWithReauth(password: string, newEmail: string) 
 }
 
 export async function updatePasswordWithReauth(currentPassword: string, newPassword: string) {
+    const { auth } = getFirebaseInstancesIfReady();
     if (!auth?.currentUser) throw new Error("Not authenticated.");
     await reauthenticate(currentPassword);
     await updatePassword(auth.currentUser, newPassword);
@@ -91,6 +96,7 @@ export async function updatePasswordWithReauth(currentPassword: string, newPassw
 }
 
 export async function deleteUserAccount() {
+    const { functions, auth } = await initializeFirebaseServices();
     if (!functions || !auth?.currentUser) throw new Error("Firebase not fully initialized.");
     const adminDeleteUser = httpsCallable(functions, 'adminDeleteUser');
     await adminDeleteUser({ uid: auth.currentUser.uid });

@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MailCheck } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { getFirebaseInstancesIfReady } from '@/lib/firebase';
 
 export default function CheckEmailPage() {
     const { user, resendVerificationEmail, signOut } = useAuth();
@@ -20,6 +20,7 @@ export default function CheckEmailPage() {
     
     // Poll for email verification status
     useEffect(() => {
+        const { auth } = getFirebaseInstancesIfReady();
         if(!user || user.emailVerified || !auth) return;
 
         const poll = async () => {

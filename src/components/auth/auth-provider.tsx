@@ -5,9 +5,11 @@ import { User, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, 
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db } from '@/lib/firebase';
 import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { initializeFirebaseServices, getFirebaseInstancesIfReady } from '@/lib/firebase';
+import type { Auth } from 'firebase/auth';
+import type { Firestore } from 'firebase/firestore';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -20,6 +22,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<User | null>;
   sendPasswordReset: (email: string) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
+  emulatorError: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,48 +33,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [auth, setAuth] = useState<Auth | null>(null);
+  const [db, setDb] = useState<Firestore | null>(null);
+  const [emulatorError, setEmulatorError] = useState(false);
+
 
   useEffect(() => {
-    // Runtime check for API key
-    if (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-        console.error("Firebase API key missing at runtime.");
-        setFirebaseError("Firebase is not configured. Please add your Firebase Web Config to your environment variables.");
-    }
-    
-    if (!auth || !db) {
-        setFirebaseError("Firebase is not configured correctly. Check your environment variables and restart the server.");
-        setLoading(false);
-        return;
-    }
+    const initFirebase = async () => {
+      // Runtime check for API key
+      if (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+          console.error("Firebase API key missing at runtime.");
+          setFirebaseError("Firebase is not configured. Please add your Firebase Web Config to your environment variables.");
+          setLoading(false);
+          return;
+      }
 
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const unsubUserDoc = onSnapshot(userRef, (snapshot) => {
-          if (snapshot.exists()) {
-            setUser({ ...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified });
+      try {
+        const { auth: authInstance, db: dbInstance, error } = await initializeFirebaseServices();
+        if (error) {
+          setEmulatorError(true);
+        }
+        if (!authInstance || !dbInstance) {
+          setFirebaseError("Firebase is not configured correctly. Check your environment variables and restart the server.");
+          setLoading(false);
+          return;
+        }
+        setAuth(authInstance);
+        setDb(dbInstance);
+
+        const unsubscribe = onSnapshot(doc(dbInstance, 'users', 'dummy-doc-for-rules'), ()=>{}); // For firestore rules test
+
+        authInstance.onAuthStateChanged(async (firebaseUser) => {
+          if (firebaseUser) {
+            const userRef = doc(dbInstance, 'users', firebaseUser.uid);
+            const unsubUserDoc = onSnapshot(userRef, (snapshot) => {
+              if (snapshot.exists()) {
+                setUser({ ...(snapshot.data() as UserProfile), emailVerified: firebaseUser.emailVerified });
+              } else {
+                 const newUserProfile: UserProfile = {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  displayName: firebaseUser.displayName,
+                  photoURL: firebaseUser.photoURL,
+                  role: 'operator', // Default role
+                  emailVerified: firebaseUser.emailVerified,
+                };
+                setDoc(userRef, newUserProfile).catch(e => console.error("Error creating user profile", e));
+                setUser(newUserProfile);
+              }
+               setLoading(false);
+            });
+            return () => unsubUserDoc();
           } else {
-             const newUserProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              role: 'operator', // Default role
-              emailVerified: firebaseUser.emailVerified,
-            };
-            setDoc(userRef, newUserProfile).catch(e => console.error("Error creating user profile", e));
-            setUser(newUserProfile);
+            setUser(null);
+            setLoading(false);
           }
-           setLoading(false);
         });
-        return () => unsubUserDoc();
-      } else {
-        setUser(null);
+      } catch (err) {
+        console.error("Firebase initialization failed:", err);
+        setFirebaseError("Could not connect to Firebase. Check your network or see the Env Checker.");
         setLoading(false);
       }
-    });
-
-    return () => unsubscribe();
+    };
+    
+    initFirebase();
   }, []);
   
   const handleAuthError = (error: any, context: string) => {
@@ -86,6 +111,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           toast({ variant: "destructive", title: "Configuration Error", description: "Firebase not initialized. Check your environment variables." });
           return false;
       }
+       if (emulatorError) {
+        toast({ variant: "destructive", title: "Emulator Connection Error", description: "Could not connect to Firebase emulators. Please start them and refresh." });
+        return false;
+      }
       return true;
   }
 
@@ -94,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticating(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth!, provider);
     } catch (error: any) {
       handleAuthError(error, "Google Sign-In");
     } finally {
@@ -106,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!checkAuthReady() || !db) return null;
     setIsAuthenticating(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
       const firebaseUser = userCredential.user;
       await updateProfile(firebaseUser, { displayName });
       const userProfile: UserProfile = {
@@ -132,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!checkAuthReady()) return null;
     setIsAuthenticating(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth!, email, password);
       setIsAuthenticating(false);
       return userCredential.user;
     } catch (error: any)
@@ -145,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendPasswordReset = async (email: string) => {
     if (!checkAuthReady()) return;
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth!, email);
       toast({ title: "Password Reset Email Sent", description: "If an account exists, you will receive reset instructions." });
     } catch (error: any) {
         const { mapFirebaseAuthError } = await import('@/lib/authErrors');
@@ -155,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resendVerificationEmail = async () => {
-    if (!checkAuthReady() || !auth.currentUser) return;
+    if (!checkAuthReady() || !auth?.currentUser) return;
     try {
       await sendEmailVerification(auth.currentUser);
       toast({ title: "Verification Email Sent", description: "A new verification email has been sent." });
@@ -169,13 +198,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     if (!checkAuthReady()) return;
     try {
-      await firebaseSignOut(auth);
+      await firebaseSignOut(auth!);
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
 
-  const value = { user, loading, isAuthenticating, firebaseError, signInWithGoogle, signOut, signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail };
+  const value = { user, loading, isAuthenticating, firebaseError, signInWithGoogle, signOut, signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail, emulatorError };
 
   return (
     <AuthContext.Provider value={value}>
@@ -183,6 +212,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             <div className="bg-destructive text-destructive-foreground p-3 text-center text-sm font-semibold flex items-center justify-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
                 <span>{firebaseError}</span>
+                 <Link href="/dev/env-checker" className="underline font-bold">Open Env Checker</Link>
+            </div>
+        )}
+        {emulatorError && (
+             <div className="bg-yellow-500 text-black p-3 text-center text-sm font-semibold flex items-center justify-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                <span>Could not connect to Firebase emulators. Some features may not work.</span>
                  <Link href="/dev/env-checker" className="underline font-bold">Open Env Checker</Link>
             </div>
         )}
