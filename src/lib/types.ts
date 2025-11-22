@@ -1,7 +1,7 @@
 
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'admin' | 'operator';
+export type UserRole = 'admin' | 'operator' | 'superadmin' | 'moderator' | 'analyst';
 
 export interface UserProfile {
   uid: string;
@@ -20,6 +20,9 @@ export interface UserProfile {
   };
   connectedProviders?: string[];
   updatedAt?: Timestamp;
+  createdAt?: Timestamp;
+  lastLogin?: Timestamp;
+  deactivated?: boolean;
 }
 
 export interface Author {
@@ -130,4 +133,20 @@ export interface AuditLog {
   user: string; // or User ID
   action: string;
   details: any;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  adminId: string;
+  action: string;
+  target: {
+    uid: string;
+    email: string;
+  };
+  meta: {
+    ip?: string;
+    ua?: string;
+    details: any;
+  };
+  ts: Timestamp;
 }

@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -15,7 +16,7 @@ service cloud.firestore {
 
     // Helper function to check if a user is an admin
     function isAdmin() {
-      return isAuthenticated() && getRole(request.auth.uid) == 'admin';
+       return request.auth != null && (request.auth.token.admin == true || request.auth.token.role == 'superadmin');
     }
 
     // Helper function to check if a user is an operator
@@ -23,17 +24,32 @@ service cloud.firestore {
       return isAuthenticated() && (getRole(request.auth.uid) == 'operator' || isAdmin());
     }
 
-    // User profiles can be read and written to only by the user themselves.
+    // User profiles can be read by self or admin, written by self or admin
     match /users/{uid} {
-      allow read, write: if isAuthenticated() && request.auth.uid == uid;
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
       allow create: if isAuthenticated() && request.auth.uid == uid;
     }
     
-    // Audit logs can only be created by the user they pertain to. Reads are disallowed.
+    // Audit logs can only be created by the user they pertain to. Reads are disallowed for non-admins.
     match /audit.user_actions/{docId} {
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
-      allow read, update, delete: if false;
+      allow read: if isAdmin();
+      allow update, delete: if false;
     }
+    
+    // Admin audit logs are create-only by admins, and read-only by admins.
+    match /audit.admin_actions/{docId} {
+      allow create: if isAdmin();
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Admin list can only be managed by other admins.
+     match /admins/{docId} {
+      allow read, write: if isAdmin();
+    }
+
 
     // Authors can be read by any operator. Only admins can create/update/delete.
     match /authors/{authorId} {
