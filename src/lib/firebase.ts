@@ -1,4 +1,3 @@
-
 // src/lib/firebase.ts
 // Robust client-only Firebase initializer with emulator + mock fallback
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
@@ -82,6 +81,7 @@ export async function initializeFirebaseServices() {
         }
       }
       
+      
       // <<DEV DEBUG HELPERS - REMOVE BEFORE PROD>>
       if (typeof window !== "undefined" && process.env.NODE_ENV === 'development') {
         // @ts-ignore
@@ -116,4 +116,3 @@ export async function initializeFirebaseServices() {
 export function getFirebaseInstancesIfReady() {
   return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: _initialized, error: _initError };
 }
-export const auth = _auth;
