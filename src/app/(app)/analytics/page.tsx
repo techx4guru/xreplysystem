@@ -1,6 +1,6 @@
 'use client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart, Tooltip as RechartsTooltip } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Line, LineChart, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { TrendingUp, ShieldAlert, Zap } from "lucide-react";
 
@@ -39,13 +39,13 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card className="col-span-1 lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Zap className="w-5 h-5"/> Replies per Day</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfigReplies} className="h-64">
-              <LineChart data={chartDataReplies} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+            <ChartContainer config={chartConfigReplies} className="h-64 w-full">
+              <LineChart data={chartDataReplies} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { day: 'numeric' })} />
                 <YAxis />
@@ -55,13 +55,13 @@ export default function AnalyticsPage() {
             </ChartContainer>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-1">
+        <Card className="col-span-1 lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5"/> Engagement per Template</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfigEngagement} className="h-64">
-              <BarChart data={chartDataEngagement} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+            <ChartContainer config={chartConfigEngagement} className="h-64 w-full">
+              <BarChart data={chartDataEngagement} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis unit="%" />
@@ -71,7 +71,7 @@ export default function AnalyticsPage() {
             </ChartContainer>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-1">
+        <Card className="col-span-1 lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><ShieldAlert className="w-5 h-5"/> Safety Flags by Type</CardTitle>
           </CardHeader>
