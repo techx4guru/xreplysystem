@@ -7,9 +7,33 @@ admin.initializeApp();
 // Export all functions from their own files
 export { setCustomClaims };
 
-export const getSystemStats = functions.https.onCall(async (data, context) => {
-    if (!context.auth?.token?.admin) {
-        throw new functions.https.HttpsError("permission-denied", "Only admins can access system stats.");
+export const getSystemStats = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers for preflight requests
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    // Check for admin claim
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!idToken) {
+        res.status(401).send("Unauthorized");
+        return;
+    }
+
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        if (decodedToken.admin !== true) {
+            res.status(403).send("Permission denied");
+            return;
+        }
+    } catch (error) {
+        res.status(401).send("Invalid token");
+        return;
     }
     
     const db = admin.firestore();
@@ -29,21 +53,20 @@ export const getSystemStats = functions.https.onCall(async (data, context) => {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         const activeUsers = usersResult.users.filter(u => u.metadata.lastSignInTime >= thirtyDaysAgo).length;
 
-        // Storage Usage - This is a rough estimate of file count, not size.
-        // For actual size, you'd need a more complex GCS interaction.
+        // Storage Usage
         const [files] = await bucket.getFiles();
         const storageUsage = `${(files.reduce((acc, file) => acc + parseInt(file.metadata.size as string, 10), 0) / (1024 * 1024)).toFixed(2)} MB`;
 
-        return {
+        res.status(200).send({
             totalUsers,
             activeUsers,
             newSignups: newUsers,
             storageUsage,
-        };
+        });
 
     } catch (error: any) {
         console.error("Error fetching system stats:", error);
-        throw new functions.https.HttpsError("internal", "Could not fetch system stats.", error.message);
+        res.status(500).send({ error: "Could not fetch system stats.", message: error.message });
     }
 });
 

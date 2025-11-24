@@ -43,11 +43,27 @@ export async function setCustomClaims(uid: string, claims: object) {
 }
 
 export async function getSystemStats() {
-    const { functions } = getFirebaseInstancesIfReady();
-    if (!functions) throw new Error("Functions not initialized");
-    const func = httpsCallable(functions, 'getSystemStats');
-    const result = await func();
-    return result.data;
+    const { functions, auth } = getFirebaseInstancesIfReady();
+    if (!functions || !auth?.currentUser) throw new Error("Functions or Auth not initialized");
+    
+    const idToken = await auth.currentUser.getIdToken();
+    const functionUrl = (functions.customDomain || `https://${functions.region}-<project-id>.cloudfunctions.net`) + "/getSystemStats";
+    
+    // Manually construct the URL for a non-callable function
+    const url = `https://${functions.region}-${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.cloudfunctions.net/getSystemStats`;
+    
+    const res = await fetch(url, {
+        headers: {
+            'Authorization': `Bearer ${idToken}`
+        }
+    });
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to fetch system stats: ${res.status} ${errorText}`);
+    }
+
+    return await res.json();
 }
 
 export async function getUserClaims(uid: string) {
