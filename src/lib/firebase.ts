@@ -1,5 +1,6 @@
 // src/lib/firebase.ts
-// Robust client-only Firebase initializer with emulator + mock fallback
+// Robust client-only Firebase initializer with emulator + debug helpers
+
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import type { Auth } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
@@ -15,7 +16,6 @@ let _storage: FirebaseStorage | null = null;
 let _initialized = false;
 let _initError: Error | null = null;
 
-
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
@@ -26,37 +26,38 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? "",
 };
 
-// Create a minimal mock services object for offline dev
+// Mock fallback for offline dev
 export function createMockServices() {
   return {
     app: null,
-    auth: {
-      onAuthStateChanged: (_cb: any) => { return () => {}; },
-    },
+    auth: { onAuthStateChanged: () => () => {} },
     db: null,
     functions: null,
     storage: null,
     ready: true,
-    _mock: true,
+    _mock: true
   };
 }
 
 export async function initializeFirebaseServices() {
   if (typeof window === "undefined") {
-    return { app: null, auth: null, db: null, functions: null, storage: null, ready: false, error: null };
+    return { app: null, auth: null, db: null, functions: null, storage: null, ready: false };
   }
-  if (_initialized) return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: true, error: _initError };
+
+  if (_initialized) {
+    return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: true };
+  }
 
   if (!firebaseConfig.apiKey) {
-    _initError = new Error("Missing NEXT_PUBLIC_FIREBASE_API_KEY");
-    console.error("Missing NEXT_PUBLIC_FIREBASE_API_KEY — set envs in Firebase Studio and restart.");
-    throw _initError;
+    const err = new Error("Missing NEXT_PUBLIC_FIREBASE_API_KEY");
+    console.error(err);
+    throw err;
   }
 
-  // Retry initialization to tolerate transient network/DNS blips
   return retry(async () => {
     try {
       _app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
       const authMod = await import("firebase/auth");
       const firestoreMod = await import("firebase/firestore");
       const functionsMod = await import("firebase/functions");
@@ -67,52 +68,96 @@ export async function initializeFirebaseServices() {
       _functions = functionsMod.getFunctions(_app, process.env.NEXT_PUBLIC_FUNCTIONS_BASE_URL || undefined);
       _storage = storageMod.getStorage(_app);
 
+      // Emulator support
       if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true") {
+        console.info("Connecting Firebase Emulators...");
         try {
-          console.info("Connecting to Firebase emulators...");
           authMod.connectAuthEmulator(_auth, "http://localhost:9099", { disableWarnings: true });
           firestoreMod.connectFirestoreEmulator(_db, "localhost", 8080);
           functionsMod.connectFunctionsEmulator(_functions, "localhost", 5001);
           storageMod.connectStorageEmulator(_storage, "localhost", 9199);
-          console.info("Connected to Firebase emulators");
         } catch (e) {
-          console.warn("Emulator connection error", e);
-           _initError = e as Error;
+          console.warn("Emulator error", e);
         }
       }
-      
-      
-      // <<DEV DEBUG HELPERS - REMOVE BEFORE PROD>>
-      if (typeof window !== "undefined" && process.env.NODE_ENV === 'development') {
+
+      // Developer debug helpers — SAFE implementation
+      if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
         // @ts-ignore
-        window.__auth = _auth;
-        // @ts-ignore
-        window.__getAuthClaims = async (force=false) => {
-          // @ts-ignore
-          if (!window.__auth || !window.__auth.currentUser) return null;
-          try {
-            // @ts-ignore
-            const tr = await window.__auth.currentUser.getIdTokenResult(force);
-            // @ts-ignore
-            return { claims: tr.claims, uid: window.__auth.currentUser.uid, email: window.__auth.currentUser.email };
-          } catch (e: any) {
-            return { error: e?.message || String(e) };
+        window.__firebase = {
+          app: _app,
+          auth: _auth,
+          db: _db,
+          functions: _functions,
+          storage: _storage,
+          getClaims: async (force = false) => {
+            if (!_auth?.currentUser) return null;
+            const r = await _auth.currentUser.getIdTokenResult(force);
+            return { uid: r.claims.user_id, email: r.claims.email, claims: r.claims };
+          },
+          setFirestoreLogLevel: async (level = "debug") => {
+            const m = await import("firebase/firestore");
+            m.setLogLevel(level);
+            console.log("Firestore log level:", level);
+          },
+          probeDocs: async (
+            paths = [
+              "config/app",
+              "autopilot/config",
+              "config/global",
+              "settings/app",
+              "autopilot/boot",
+              "public/config"
+            ]
+          ) => {
+            const { doc, getDoc } = await import("firebase/firestore");
+            const results: any[] = [];
+
+            for (const p of paths) {
+              const [col, id] = p.split("/");
+              try {
+                const ref = doc(_db!, col, id);
+                const snap = await getDoc(ref);
+                results.push({
+                  path: p,
+                  exists: snap.exists(),
+                  data: snap.exists() ? snap.data() : null,
+                  error: null
+                });
+              } catch (err: any) {
+                results.push({
+                  path: p,
+                  exists: false,
+                  data: null,
+                  error: err.message
+                });
+              }
+            }
+
+            console.table(results);
+            return results;
           }
         };
+
+        console.log("%c🔥 Firebase Debug Enabled", "color:#0f0;font-weight:bold;");
       }
 
-
       _initialized = true;
-      return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: true, error: _initError };
-    } catch (err: any) {
+      return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: true };
+    } catch (err) {
       console.error("Firebase init failed:", err);
-       _initError = err;
-      // If preview environment blocks network, throw so caller can choose fallback
       throw err;
     }
   }, { retries: 3, baseDelay: 500 });
 }
 
 export function getFirebaseInstancesIfReady() {
-  return { app: _app, auth: _auth, db: _db, functions: _functions, storage: _storage, ready: _initialized, error: _initError };
+  return {
+    app: _app,
+    auth: _auth,
+    db: _db,
+    functions: _functions,
+    storage: _storage,
+    ready: _initialized
+  };
 }

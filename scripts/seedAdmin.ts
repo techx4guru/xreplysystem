@@ -1,47 +1,50 @@
+import admin from "firebase-admin";
 
-import * as admin from 'firebase-admin';
-
-// This script requires you to have Google Application Default Credentials.
-// Run `gcloud auth application-default login` first.
-// It also needs the project ID.
+const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS_JSON || "{}");
 const projectId = process.env.GCLOUD_PROJECT;
+
 if (!projectId) {
-    console.error("GCLOUD_PROJECT env var not set. Please set it to your Firebase project ID.");
-    process.exit(1);
+  console.error("GCLOUD_PROJECT is not set.");
+  process.exit(1);
 }
 
-admin.initializeApp({
-  projectId,
-});
+if (admin.apps.length === 0) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId,
+  });
+}
 
 const targetUid = "IAkQr6XOutgV94FwN6y16CHsfKN2";
 const targetEmail = "iamcalledgt@gmail.com";
 
 async function seedAdmin() {
-  console.log(`Attempting to set admin claims for UID: ${targetUid}`);
+  console.log("🔥 Setting admin custom claims for:", targetEmail);
 
-  try {
-    // Set custom claims on the user
-    await admin.auth().setCustomUserClaims(targetUid, { admin: true, role: "superadmin" });
-    
-    console.log(`Successfully set custom claims for ${targetEmail}.`);
+  // Add custom claims
+  await admin.auth().setCustomUserClaims(targetUid, {
+    admin: true,
+    role: "superadmin",
+  });
 
-    // Create a corresponding document in the 'admins' collection for easy lookup
-    const adminsCollection = admin.firestore().collection('admins');
-    await adminsCollection.doc(targetUid).set({
+  // Add Firestore record
+  await admin.firestore()
+    .collection("admins")
+    .doc(targetUid)
+    .set(
+      {
         uid: targetUid,
         email: targetEmail,
         role: "superadmin",
-        addedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+        addedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
-    console.log(`Successfully created entry in 'admins' collection for ${targetEmail}.`);
-    console.log('Seed admin script completed successfully.');
-    
-  } catch (error) {
-    console.error('Error seeding admin user:', error);
-    process.exit(1);
-  }
+  console.log("✅ Admin setup complete.");
 }
 
-seedAdmin();
+seedAdmin().catch((err) => {
+  console.error("❌ Error seeding admin:", err);
+  process.exit(1);
+});
