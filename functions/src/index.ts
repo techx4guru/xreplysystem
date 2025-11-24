@@ -8,11 +8,12 @@ admin.initializeApp();
 export { setCustomClaims };
 
 export const getSystemStats = functions.https.onRequest(async (req, res) => {
-    // Set CORS headers for preflight requests
+    // Set CORS headers to allow requests from any origin
     res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
+    // Respond to preflight requests
     if (req.method === "OPTIONS") {
         res.status(204).send("");
         return;
