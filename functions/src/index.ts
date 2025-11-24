@@ -1,4 +1,3 @@
-
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { setCustomClaims } from './setCustomClaims';
@@ -7,6 +6,47 @@ admin.initializeApp();
 
 // Export all functions from their own files
 export { setCustomClaims };
+
+export const getSystemStats = functions.https.onCall(async (data, context) => {
+    if (!context.auth?.token?.admin) {
+        throw new functions.https.HttpsError("permission-denied", "Only admins can access system stats.");
+    }
+    
+    const db = admin.firestore();
+    const auth = admin.auth();
+    const bucket = admin.storage().bucket();
+
+    try {
+        // Total Users
+        const usersResult = await auth.listUsers();
+        const totalUsers = usersResult.users.length;
+
+        // New Signups (24h)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const newUsers = usersResult.users.filter(u => u.metadata.creationTime >= twentyFourHoursAgo).length;
+
+        // Active Users (30d) - This is a proxy. For real data, you'd track logins.
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const activeUsers = usersResult.users.filter(u => u.metadata.lastSignInTime >= thirtyDaysAgo).length;
+
+        // Storage Usage - This is a rough estimate of file count, not size.
+        // For actual size, you'd need a more complex GCS interaction.
+        const [files] = await bucket.getFiles();
+        const storageUsage = `${(files.reduce((acc, file) => acc + parseInt(file.metadata.size as string, 10), 0) / (1024 * 1024)).toFixed(2)} MB`;
+
+        return {
+            totalUsers,
+            activeUsers,
+            newSignups: newUsers,
+            storageUsage,
+        };
+
+    } catch (error: any) {
+        console.error("Error fetching system stats:", error);
+        throw new functions.https.HttpsError("internal", "Could not fetch system stats.", error.message);
+    }
+});
+
 
 export const adminDeleteUser = functions.https.onCall(async (data, context) => {
   // Check if the user is an admin
